@@ -1,12 +1,12 @@
-# /senior-health/Dockerfile
+# /senior-health/Dockerfile (Corrected)
 
 # Stage 1: Install Rust and build wheels
 FROM rust:1.78 as builder
 
 WORKDIR /usr/src/app
 
-# Install Python 3.10
-RUN apt-get update && apt-get install -y python3.10 python3-pip python3.10-venv
+# Install Python 3.10 (venv package ko hata diya gaya hai)
+RUN apt-get update && apt-get install -y python3.10 python3-pip
 
 # Install maturin for building Rust-based Python packages
 RUN pip install maturin
