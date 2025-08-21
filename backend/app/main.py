@@ -1,8 +1,8 @@
-# backend/app/main.py (Fully Updated with Static File Serving)
+# backend/app/main.py (Updated with Production CORS)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles # <-- YEH IMPORT ADD KIYA GAYA HAI
+from fastapi.staticfiles import StaticFiles
 from .scheduler import scheduler, send_medication_reminders
 # Import database and models
 from .database import engine, Base 
@@ -33,8 +33,9 @@ app = FastAPI(
 origins = [
     "http://localhost",
     "http://localhost:8501",
-    # Add your deployed Streamlit Cloud URL here later
-    # "https://your-streamlit-app-url.streamlit.app", 
+    # --- YEH LINE ADD KI GAYI HAI ---
+    # This is your live frontend URL. It's essential for the deployed app to work.
+    "https://health-companion-hnz5.onrender.com" 
 ]
 
 app.add_middleware(
@@ -45,11 +46,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- NAYA CODE: STATIC FILE SERVING ---
-# This line tells FastAPI to serve the images from the 'uploaded_images' directory
-# at the URL path '/uploaded_images'. This is how the frontend will display them.
+# --- STATIC FILE SERVING ---
+# This line tells FastAPI to serve the images from the 'uploaded_images' directory.
+# We create the directory here to ensure it exists.
+import os
+os.makedirs("uploaded_images", exist_ok=True)
 app.mount("/uploaded_images", StaticFiles(directory="uploaded_images"), name="uploaded_images")
-# --- NAYA CODE KHATAM ---
 
 
 # --- Include Routers ---
@@ -59,10 +61,11 @@ app.include_router(medication_routes.router)
 app.include_router(appointment_routes.router)
 app.include_router(contact_routes.router)
 app.include_router(tip_routes.router)
+
+# --- Scheduler Events ---
 @app.on_event("startup")
 async def startup_event():
     """Starts the scheduler when the FastAPI application starts."""
-    # Har minute 'send_medication_reminders' function ko chalao
     scheduler.add_job(send_medication_reminders, 'interval', minutes=1, id="med_reminder_job")
     scheduler.start()
     print("Scheduler started...")
