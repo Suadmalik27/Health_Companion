@@ -1,25 +1,36 @@
-# frontend/pages/4_Contacts.py
+# frontend/pages/4_Contacts.py (Fully Corrected and Robust Version)
 
 import streamlit as st
 import requests
 
-# --- CONFIGURATION & API CLIENT (Required on every page) ---
+# --- CONFIGURATION (UPDATED SECTION) ---
+# This smart logic checks for secrets for online deployment,
+# and falls back to a local URL for local development.
 if "API_BASE_URL" in st.secrets:
     API_BASE_URL = st.secrets["API_BASE_URL"]
 else:
     API_BASE_URL = "http://127.0.0.1:8000"
 
+
+# --- API CLIENT CLASS (UPDATED AND ROBUST) ---
+# This class is now corrected to properly handle the auth token.
 class ApiClient:
     def __init__(self, base_url):
         self.base_url = base_url
         self.token = st.session_state.get("token", None)
 
     def _get_headers(self):
+        """
+        CORRECTED: Re-fetches the token from session_state before EVERY request.
+        This solves the '401 Unauthorized' error.
+        """
+        self.token = st.session_state.get("token", None)
         if self.token:
             return {"Authorization": f"Bearer {self.token}"}
         return {}
 
     def _make_request(self, method, endpoint, **kwargs):
+        """A robust request handler to prevent crashes."""
         try:
             response = requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
             return response
@@ -38,10 +49,12 @@ class ApiClient:
 
 api = ApiClient(API_BASE_URL)
 
+
 # --- SECURITY CHECK (Required on every page) ---
 if 'token' not in st.session_state:
     st.warning("Please login first to access this page.")
     st.stop()
+
 
 # --- PAGE CONFIG AND STYLES ---
 st.set_page_config(page_title="Emergency Contacts", layout="wide")
@@ -94,16 +107,13 @@ if response and response.status_code == 200:
     if not contacts:
         st.info("You have not added any emergency contacts yet. Use the form above to get started.")
 
-    # Create two columns for a better layout on larger screens
     col1, col2 = st.columns(2)
     
     for i, contact in enumerate(contacts):
-        # Alternate between columns
         current_col = col1 if i % 2 == 0 else col2
         
         with current_col:
             with st.container(border=True):
-                # Check if this specific contact is being edited
                 if st.session_state.get('editing_contact_id') == contact['id']:
                     with st.form(key=f"edit_contact_form_{contact['id']}"):
                         st.subheader(f"Editing: {contact['name']}")
@@ -127,11 +137,9 @@ if response and response.status_code == 200:
                                 del st.session_state['editing_contact_id']
                                 st.rerun()
                 else:
-                    # Default view: Display the contact info and quick dial link
                     phone_num = contact['phone_number']
                     st.markdown(f"**{contact['name']}** ({contact.get('relationship_type', 'N/A')})")
                     
-                    # Clickable "Call" link
                     st.markdown(f'<a href="tel:{phone_num}" class="call-link">Call {phone_num}</a>', unsafe_allow_html=True)
                     
                     c1, c2 = st.columns(2)
@@ -147,5 +155,7 @@ if response and response.status_code == 200:
                                 st.rerun()
                             else:
                                 st.error("Failed to delete contact.")
+elif response and response.status_code == 401:
+    st.warning("Session expired. Please log out and log in again.")
 else:
     st.error("Could not load your contact data from the server.")

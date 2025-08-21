@@ -1,116 +1,151 @@
-# frontend/pages/1_Dashboard.py (Updated with Quick Dial Buttons)
+# frontend/pages/Dashboard.py (Corrected for NoneType Error)
 
 import streamlit as st
 import requests
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
-# --- CONFIGURATION & API CLIENT (Required on every page) ---
+# --- CONFIGURATION & API CLIENT ---
 if "API_BASE_URL" in st.secrets:
     API_BASE_URL = st.secrets["API_BASE_URL"]
 else:
     API_BASE_URL = "http://127.0.0.1:8000"
 
+# --- API CLIENT CLASS ---
 class ApiClient:
     def __init__(self, base_url):
         self.base_url = base_url
-        self.token = st.session_state.get("token", None)
-
     def _get_headers(self):
-        if self.token:
-            return {"Authorization": f"Bearer {self.token}"}
+        token = st.session_state.get("token", None)
+        if token: return {"Authorization": f"Bearer {token}"}
         return {}
-
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            response = requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
-            return response
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
         except requests.exceptions.ConnectionError:
-            st.error("Connection Error: Could not connect to the backend server.")
-            return None
-
-    def get(self, endpoint, params=None):
-        return self._make_request("GET", endpoint, params=params)
+            st.error("Connection Error: Could not connect to the backend server."); return None
+    def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
+    def post(self, endpoint, json=None): return self._make_request("POST", endpoint, json=json)
 
 api = ApiClient(API_BASE_URL)
 
-# --- SECURITY CHECK (Required on every page) ---
+# --- SECURITY CHECK ---
 if 'token' not in st.session_state:
-    st.warning("Please login first to access this page.")
-    st.stop()
+    st.warning("Please login first to access this page."); st.stop()
 
-# --- PAGE CONFIG AND STYLES ---
-st.set_page_config(page_title="Dashboard - Health Companion", layout="wide")
-
-# We add the specific style for the call link here
-st.markdown("""
-    <style>
-        .call-link {
-            display: block; padding: 12px; background-color: #ffe3e3;
-            border-radius: 8px; text-align: center; text-decoration: none;
-            color: #c92a2a; font-weight: bold; margin-bottom: 10px; border: 1px solid #ffc9c9;
-        }
-        .call-link:hover { background-color: #ffc9c9; color: #a71c1c; }
-    </style>
-""", unsafe_allow_html=True)
-
-
-# --- DASHBOARD PAGE CONTENT ---
-
-st.header("Today's Dashboard")
-col1, col2 = st.columns(2)
-
-with col1:
-    with st.container(border=True):
-        st.subheader("🗓️ Today's Appointments")
-        response = api.get("/appointments/")
+# --- DATA LOADING (EFFICIENT & CACHED) ---
+@st.cache_data(ttl=30)
+def load_dashboard_data(_api_client: ApiClient):
+    today_iso = date.today().isoformat()
+    endpoints = {
+        "user_profile": "/users/me",
+        "appointments": f"/appointments/?start_date={today_iso}&end_date={(date.today() + timedelta(days=6)).isoformat()}",
+        "medications": "/medications/",
+        "tip": "/tips/random",
+        "med_log": f"/medications/log/{today_iso}"
+    }
+    data = {}
+    for key, endpoint in endpoints.items():
+        response = _api_client.get(endpoint)
         if response and response.status_code == 200:
-            appointments = response.json()
-            today = datetime.now().date()
-            today_apps = [app for app in appointments if datetime.fromisoformat(app['appointment_datetime']).date() == today]
-            if today_apps:
-                for app in sorted(today_apps, key=lambda x: x['appointment_datetime']):
-                    st.info(f"**{app['doctor_name']}** at {datetime.fromisoformat(app['appointment_datetime']).strftime('%I:%M %p')}")
-            else:
-                st.write("You have no appointments scheduled for today.")
-        else:
-            st.warning("Could not fetch appointments.")
+            data[key] = response.json()
+        else: data[key] = None
+    return data
 
-    with st.container(border=True):
-        st.subheader("💊 Today's Medications")
-        response = api.get("/medications/")
-        if response and response.status_code == 200:
-            meds = [m for m in response.json() if m['is_active']]
-            if meds:
-                for med in sorted(meds, key=lambda x: datetime.strptime(x['timing'], '%H:%M:%S').time()):
-                    st.success(f"**{med['name']}** ({med['dosage']}) at {datetime.strptime(med['timing'], '%H:%M:%S').strftime('%I:%M %p')}")
-            else:
-                st.write("You have no active medications scheduled.")
-        else:
-            st.warning("Could not fetch medications.")
+# --- CALLBACK FUNCTION FOR BUTTONS ---
+def handle_med_taken(med_id):
+    with st.spinner("Logging..."):
+        response = api.post(f"/medications/{med_id}/log")
+    if response and response.status_code in [201, 200]:
+        st.toast(f"Great job!", icon="✅")
+        if 'taken_med_ids' not in st.session_state or st.session_state.taken_med_ids is None:
+            st.session_state.taken_med_ids = []
+        st.session_state.taken_med_ids.append(med_id)
+        st.cache_data.clear()
+    else:
+        st.error("Failed to log medication.")
 
-with col2:
-    with st.container(border=True):
-        st.subheader("📞 Emergency Contacts")
-        response = api.get("/contacts/")
-        if response and response.status_code == 200:
-            contacts = response.json()
-            if contacts:
-                # --- YEH BADLAV HUA HAI (START) ---
-                for contact in contacts:
-                    phone_number = contact['phone_number']
-                    # Create a clickable link that opens the phone dialer
-                    st.markdown(f'<a href="tel:{phone_number}" class="call-link">Call {contact["name"]}<br><small>{phone_number}</small></a>', unsafe_allow_html=True)
-                # --- YEH BADLAV HUA HAI (END) ---
-            else:
-                st.write("You have not added any emergency contacts yet.")
-        else:
-            st.warning("Could not fetch contacts.")
-    
-    with st.container(border=True):
-        st.subheader("💡 Today's Health Tip")
-        response = api.get("/tips/random")
-        if response and response.status_code == 200:
-            tip = response.json()
-            st.info(f"**{tip['category']}:** {tip['content']}")
-        else:
-            st.warning("Could not fetch a health tip. Add tips via the backend API docs.")
+# --- MAIN DASHBOARD UI ---
+with st.spinner("Loading your dashboard..."):
+    dashboard_data = load_dashboard_data(api)
+    user_profile = dashboard_data.get("user_profile")
+    all_appointments = dashboard_data.get("appointments")
+    all_medications = dashboard_data.get("medications")
+    health_tip = dashboard_data.get("tip")
+    taken_med_ids_from_api = dashboard_data.get("med_log", [])
+
+if not all_medications:
+    st.error("Could not load medication data. Please try refreshing."); st.stop()
+
+# --- YAHAN BADLAV HUA HAI ---
+# A more robust way to handle session state initialization
+session_taken = st.session_state.get('taken_med_ids', []) or []
+api_taken = taken_med_ids_from_api or []
+st.session_state.taken_med_ids = list(set(session_taken + api_taken))
+# --- BADLAV KHATAM ---
+
+time_format_pref = user_profile.get("time_format", "12h") if user_profile else "12h"
+time_format_str = "%I:%M %p" if time_format_pref == "12h" else "%H:%M"
+today = date.today()
+today_appointments = [app for app in all_appointments if datetime.fromisoformat(app['appointment_datetime']).date() == today] if all_appointments else []
+today_medications = [med for med in all_medications if med.get('is_active', True)]
+
+# --- "DAY SUMMARY" CARD SECTION ---
+st.subheader("Today's Summary")
+s_col1, s_col2, s_col3 = st.columns(3)
+with s_col1:
+    total_meds = len(today_medications)
+    meds_taken_count = len(st.session_state.taken_med_ids) # Yeh line ab safe hai
+    st.markdown(f"""
+    <div class="card">
+        <h3 style="color: #4caf50;">✅ Medicines Taken</h3>
+        <p style="font-size: 2.5rem; font-weight: bold; margin: 0; color: #4caf50;">{meds_taken_count} / {total_meds}</p>
+    </div>""", unsafe_allow_html=True)
+
+# ... (baaki ka code jaisa tha waisa hi rahega)
+with s_col2:
+    st.markdown(f"""<div class="card"><h3 style="color: #1c83e1;">🗓️ Appointments Today</h3><p style="font-size: 2.5rem; font-weight: bold; margin: 0; color: #1c83e1;">{len(today_appointments)}</p></div>""", unsafe_allow_html=True)
+with s_col3:
+    tip_content = health_tip['content'] if health_tip else "Stay hydrated."
+    tip_category = health_tip['category'] if health_tip else "Health Tip"
+    st.markdown(f"""<div class="card"><h3 style="color: #ff9800;">💡 {tip_category}</h3><p style="font-size: 1rem; margin: 0;">{tip_content}</p></div>""", unsafe_allow_html=True)
+
+st.divider()
+
+d_col1, d_col2 = st.columns(2, gap="large")
+with d_col1:
+    st.subheader("Today's Medications")
+    if not today_medications:
+        st.markdown('<div class="card"><p>No medications scheduled today.</p></div>', unsafe_allow_html=True)
+    else:
+        for med in sorted(today_medications, key=lambda x: datetime.strptime(x['timing'], '%H:%M:%S').time()):
+            is_taken = med['id'] in st.session_state.taken_med_ids
+            with st.container(border=True):
+                m_col1, m_col2 = st.columns([1, 4])
+                with m_col1:
+                    pfp_url = med.get("photo_url")
+                    if pfp_url: st.image(f"{API_BASE_URL}/{pfp_url}", width=70)
+                    else: st.image("https://via.placeholder.com/70x70.png?text=💊", width=70)
+                with m_col2:
+                    st.markdown(f"**{med['name']}**")
+                    st.caption(f"{med['dosage']} - Due at {datetime.strptime(med['timing'], '%H:%M:%S').strftime(time_format_str)}")
+                st.button(
+                    "✅ Taken" if is_taken else "Mark as Taken", key=f"med_taken_{med['id']}",
+                    on_click=handle_med_taken, args=(med['id'],), disabled=is_taken,
+                    use_container_width=True, type="primary" if not is_taken else "secondary"
+                )
+with d_col2:
+    st.subheader("Today's Appointments")
+    if not today_appointments:
+        st.markdown('<div class="card"><p>No appointments today.</p></div>', unsafe_allow_html=True)
+    else:
+        for app in sorted(today_appointments, key=lambda x: x['appointment_datetime']):
+            with st.container(border=True):
+                a_col1, a_col2 = st.columns([1, 4])
+                with a_col1:
+                    pfp_url = app.get("photo_url")
+                    if pfp_url: st.image(f"{API_BASE_URL}/{pfp_url}", width=70)
+                    else: st.image("https://via.placeholder.com/70x70.png?text=👨‍⚕️", width=70)
+                with a_col2:
+                    st.markdown(f"**{app['doctor_name']}**")
+                    st.caption(f"{app.get('purpose', 'Check-up')} at {datetime.fromisoformat(app['appointment_datetime']).strftime(time_format_str)}")
+                    st.caption(f"📍 {app.get('location', 'Not specified')}")

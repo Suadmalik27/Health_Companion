@@ -1,4 +1,4 @@
-# backend/app/models/appointment.py
+# /backend/app/models/appointment.py (Updated)
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from ..database import Base
@@ -11,6 +11,7 @@ class Appointment(Base):
     purpose = Column(String, nullable=True)
     appointment_datetime = Column(DateTime)
     location = Column(String, nullable=True)
+    photo_url = Column(String, nullable=True) # <-- YEH LINE ADD KAREIN
     
     owner_id = Column(Integer, ForeignKey("users.id"))
 
