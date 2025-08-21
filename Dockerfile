@@ -1,45 +1,42 @@
-# /senior-health/Dockerfile (Corrected)
+# /senior-health/Dockerfile (Final, More Robust Version)
 
-# Stage 1: Install Rust and build wheels
+# Stage 1: Build Stage with Rust
 FROM rust:1.78 as builder
 
-WORKDIR /usr/src/app
-
-# Install Python 3.10 (venv package ko hata diya gaya hai)
+# Install Python 3.10
 RUN apt-get update && apt-get install -y python3.10 python3-pip
 
-# Install maturin for building Rust-based Python packages
-RUN pip install maturin
+# Set up a virtual environment
+RUN python3.10 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy only the requirements files first to leverage Docker cache
-COPY backend/requirements.txt ./backend/
-COPY frontend/requirements.txt ./frontend/
+# Copy requirements and install them, building wheels
+COPY backend/requirements.txt /app/backend/
+COPY frontend/requirements.txt /app/frontend/
+RUN pip install --upgrade pip
+RUN pip wheel --no-cache-dir --wheel-dir=/app/wheels -r /app/backend/requirements.txt
+RUN pip wheel --no-cache-dir --wheel-dir=/app/wheels -r /app/frontend/requirements.txt
 
-# Install backend dependencies, building wheels from source
-RUN pip install -r ./backend/requirements.txt
 
-
-# Stage 2: Create the final, smaller image
+# Stage 2: Final Production Stage
 FROM python:3.10-slim
 
-WORKDIR /app
+# Create a non-root user
+RUN useradd --create-home appuser
+USER appuser
+WORKDIR /home/appuser/app
 
-# Copy the built wheels from the builder stage
-COPY --from=builder /root/.cache/pip /root/.cache/pip
+# Set up a virtual environment
+RUN python3.10 -m venv /home/appuser/venv
+ENV PATH="/home/appuser/venv/bin:$PATH"
 
-# Copy the requirements files
-COPY backend/requirements.txt ./backend/
-COPY frontend/requirements.txt ./frontend/
+# Copy built wheels and install them
+COPY --from=builder /app/wheels /app/wheels
+RUN pip install --no-cache-dir --no-index --find-links=/app/wheels /app/wheels/*
 
-# Install dependencies using the cached wheels
-RUN pip install --no-index --find-links=/root/.cache/pip/wheels -r ./backend/requirements.txt
-RUN pip install --no-index --find-links=/root/.cache/pip/wheels -r ./frontend/requirements.txt
+# Copy application code
+COPY --chown=appuser:appuser . .
 
-# Copy the rest of the application code
-COPY . .
-
-# Expose the ports
+# Expose ports
 EXPOSE 8000
 EXPOSE 8501
-
-# We will define the start command on Render directly
