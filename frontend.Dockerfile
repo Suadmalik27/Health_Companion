@@ -1,7 +1,7 @@
 # /senior-health/frontend.Dockerfile
 
 # Stage 1: Build Stage
-FROM python:3.10-slim as builder
+RUN apt-get update && apt-get install -y git
 WORKDIR /app
 COPY frontend/requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir=/app/wheels -r requirements.txt
