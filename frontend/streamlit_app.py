@@ -1,4 +1,4 @@
-# frontend/streamlit_app.py (100% Complete, Corrected, and Final Version)
+# frontend/streamlit_app.py (Final Polished Version with Centered Login & Hidden Sidebar)
 
 import streamlit as st
 import requests
@@ -34,6 +34,7 @@ api = ApiClient(API_BASE_URL)
 def apply_global_styles():
     st.markdown("""
         <style>
+            /* General Font and Button styles */
             html, body, [class*="st-"], .st-emotion-cache-1avcm0n {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 18px;
             }
@@ -104,69 +105,88 @@ def create_header():
 
 # --- AUTHENTICATION PAGE FUNCTION ---
 def show_login_register_page():
-    st.markdown("""<style>section[data-testid="stSidebar"] { display: none; }.st-emotion-cache-1y4p8pa {display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh;}</style>""", unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+            /* Hide the sidebar on the login page */
+            section[data-testid="stSidebar"] {
+                display: none;
+            }
+            /* Use Flexbox to vertically center the login form */
+            .st-emotion-cache-1y4p8pa {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        st.markdown('<div class="login-container" style="box-shadow: 0 8px 16px rgba(0,0,0,0.1); padding: 2rem 3rem; border-radius: 15px;">', unsafe_allow_html=True)
-        st.markdown("""<div style="text-align: center;"><h1 style="color: #0055a3; font-weight: 700;">🩺 Welcome!</h1><p style="color: #555; font-size: 1.2rem;">Your Health Companion</p></div>""", unsafe_allow_html=True)
-        st.write("")
-        if st.session_state.get('just_registered', False):
-            st.success("Registration successful! Please log in."); del st.session_state['just_registered']
-        
-        login_tab, register_tab = st.tabs(["**Sign In**", "**Create Account**"])
-        with login_tab:
-            with st.form("login_form"):
-                email = st.text_input("Email", placeholder="you@example.com")
-                password = st.text_input("Password", type="password")
-                if st.form_submit_button("Sign In", use_container_width=True):
-                    with st.spinner("Authenticating..."):
-                        response = api.post("/users/token", data={"username": email, "password": password})
-                    if response and response.status_code == 200:
-                        st.session_state["token"] = response.json()["access_token"]; st.session_state["user_email"] = email
-                        st.toast("Login Successful!", icon="🎉"); st.rerun()
-                    else: st.error("Login Failed: Incorrect email or password.")
-        
-        with register_tab:
-            with st.form("register_form"):
-                full_name = st.text_input("Full Name")
-                new_email = st.text_input("Email", placeholder="you@example.com")
-                new_password = st.text_input("Create Password", type="password")
-                if st.form_submit_button("Create Account", use_container_width=True):
-                    with st.spinner("Registering..."):
-                        response = api.post("/users/register", json={"full_name": full_name, "email": new_email, "password": new_password})
-                    if response and response.status_code == 201:
-                        st.session_state['just_registered'] = True; st.rerun()
-                    else:
-                        error = response.json().get('detail', 'Email may already exist.') if response else "Server is down."
-                        st.error(f"Registration Failed: {error}")
-        
-        st.write("---") # Ek line daalein
-        
-        # --- YAHAN BADLAV HUA HAI: st.dialog ko hata diya gaya hai ---
-        if st.session_state.get("show_forgot_password", False):
-            st.subheader("Reset Your Password")
-            st.write("Enter your email, and we'll send you a reset link.")
-            email_reset = st.text_input("Email Address", key="reset_email")
+    with st.container():
+        c1, c2, c3 = st.columns([1, 1.5, 1])
+        with c2:
+            st.markdown('<div class="login-container" style="box-shadow: 0 8px 16px rgba(0,0,0,0.1); padding: 2rem 3rem; border-radius: 15px;">', unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div style="text-align: center;">
+                    <h1 style="color: #0055a3; font-weight: 700;">🩺 Welcome!</h1>
+                    <p style="color: #555; font-size: 1.2rem;">Your Health Companion</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.write("")
+            if st.session_state.get('just_registered', False):
+                st.success("Registration successful!"); del st.session_state['just_registered']
+
+            login_tab, register_tab = st.tabs(["**Sign In**", "**Create Account**"])
+            with login_tab:
+                with st.form("login_form"):
+                    email = st.text_input("Email", placeholder="you@example.com")
+                    password = st.text_input("Password", type="password")
+                    if st.form_submit_button("Sign In", use_container_width=True):
+                        with st.spinner("Authenticating..."):
+                            response = api.post("/users/token", data={"username": email, "password": password})
+                        if response and response.status_code == 200:
+                            st.session_state["token"] = response.json()["access_token"]; st.session_state["user_email"] = email
+                            st.toast("Login Successful!", icon="🎉"); st.rerun()
+                        else: st.error("Login Failed: Incorrect email or password.")
             
-            c1_reset, c2_reset = st.columns(2)
-            with c1_reset:
-                if st.button("Send Reset Link", use_container_width=True, type="primary"):
-                    with st.spinner("Sending..."):
-                        response = api.post("/users/forgot-password", json={"email": email_reset})
-                    if response and response.status_code == 200:
-                        st.success("Reset link sent! Please check your email.")
+            with register_tab:
+                with st.form("register_form"):
+                    full_name = st.text_input("Full Name")
+                    new_email = st.text_input("Email", placeholder="you@example.com")
+                    new_password = st.text_input("Create Password", type="password")
+                    if st.form_submit_button("Create Account", use_container_width=True):
+                        with st.spinner("Registering..."):
+                            response = api.post("/users/register", json={"full_name": full_name, "email": new_email, "password": new_password})
+                        if response and response.status_code == 201:
+                            st.session_state['just_registered'] = True; st.rerun()
+                        else:
+                            error = response.json().get('detail', 'Email may already exist.') if response else "Server is down."
+                            st.error(f"Registration Failed: {error}")
+            
+            st.write("---")
+            if st.session_state.get("show_forgot_password", False):
+                st.subheader("Reset Your Password")
+                st.write("Enter your email, and we'll send you a reset link.")
+                email_reset = st.text_input("Email Address", key="reset_email")
+                c1_reset, c2_reset = st.columns(2)
+                with c1_reset:
+                    if st.button("Send Reset Link", use_container_width=True, type="primary"):
+                        with st.spinner("Sending..."):
+                            response = api.post("/users/forgot-password", json={"email": email_reset})
+                        if response and response.status_code == 200:
+                            st.success("Reset link sent! Please check your email."); st.session_state.show_forgot_password = False; st.rerun()
+                        else: st.error("Something went wrong.")
+                with c2_reset:
+                    if st.button("Cancel", use_container_width=True):
                         st.session_state.show_forgot_password = False; st.rerun()
-                    else:
-                        st.error("Something went wrong.")
-            with c2_reset:
-                if st.button("Cancel", use_container_width=True):
-                    st.session_state.show_forgot_password = False; st.rerun()
-        else:
-             if st.button("Forgot Password?", type="secondary", use_container_width=True):
-                st.session_state.show_forgot_password = True; st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                 if st.button("Forgot Password?", type="secondary", use_container_width=True):
+                    st.session_state.show_forgot_password = True; st.rerun()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # --- MAIN APPLICATION CONTROLLER ---
 def main():
@@ -178,9 +198,10 @@ def main():
             st.session_state.show_forgot_password = False
         show_login_register_page()
     else:
-        # --- LOGGED-IN VIEW (Poora Code Yahan Hai) ---
+        # --- LOGGED-IN VIEW ---
         if 'theme' not in st.session_state:
-            response = api.get("/users/me")
+            with st.spinner("Loading settings..."):
+                response = api.get("/users/me")
             if response and response.status_code == 200:
                 st.session_state['theme'] = response.json().get('theme', 'light')
             else:
@@ -199,10 +220,8 @@ def main():
         else:
             st.markdown(f'<a href="/Contacts" class="emergency-bar">⚠️ ADD SOS CONTACT ⚠️</a>', unsafe_allow_html=True)
         
-        # Header component ko call karein
         create_header()
         st.info("Please select a page from the sidebar to manage your health information.", icon="👈")
 
-# Yeh sunishchit karta hai ki app sirf tabhi run ho jab script ko direct execute kiya jaaye
 if __name__ == "__main__":
     main()
