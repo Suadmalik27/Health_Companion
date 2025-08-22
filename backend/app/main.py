@@ -1,4 +1,4 @@
-# backend/app/main.py (Updated with Production CORS)
+# backend/app/main.py
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,10 +13,11 @@ from .routes import medication_routes
 from .routes import appointment_routes
 from .routes import contact_routes
 from .routes import tip_routes
+import os
 
 
 # --- Database Initialization ---
-# This creates all the tables in your database when the application starts.
+# Yeh application start hone par aapke database mein saare tables banata hai.
 Base.metadata.create_all(bind=engine)
 
 
@@ -29,55 +30,67 @@ app = FastAPI(
 
 
 # --- CORS (Cross-Origin Resource Sharing) Configuration ---
-# Allows your Streamlit frontend to communicate with your FastAPI backend.
-origins = [
-    "http://localhost",
-    "http://localhost:8501",
-    # --- YEH LINE ADD KI GAYI HAI ---
-    # This is your live frontend URL. It's essential for the deployed app to work.
-    "https://health-companion-hnz5.onrender.com" 
-]
+# Yeh aapke Streamlit frontend ko aapke FastAPI backend se communicate karne deta hai.
+
+# === DEBUGGING KE LIYE IMPORTANT BADLAV ===
+# Hum yahan par ["*"] ka istemal kar rahe hain. Iska matlab hai "kisi bhi URL se
+# aane wali request ko allow karo". Yeh ek temporary step hai taaki hum check kar
+# sakein ki problem CORS ki hi hai ya nahi.
+# Agar isse aapki app chal jaati hai, to hum ise baad mein aur secure bana denge.
+origins = ["*"]
+
+# Yeh aapka original code hai jise hum baad mein wapas la sakte hain
+# origins = [
+#     "http://localhost",
+#     "http://localhost:8501",
+#     "https://health-companion-hnz5.onrender.com" 
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,  # Yahan naya `origins` variable use ho raha hai
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
 # --- STATIC FILE SERVING ---
-# This line tells FastAPI to serve the images from the 'uploaded_images' directory.
-# We create the directory here to ensure it exists.
-import os
+# Yeh line FastAPI ko 'uploaded_images' directory se images serve karne ke liye kehti hai.
+# Hum yahan directory banate hain taaki yeh hamesha maujood rahe.
 os.makedirs("uploaded_images", exist_ok=True)
 app.mount("/uploaded_images", StaticFiles(directory="uploaded_images"), name="uploaded_images")
 
 
 # --- Include Routers ---
-# Attaches all your specific API endpoints to the main application.
+# Yeh aapke sabhi API endpoints ko main application se jodta hai.
 app.include_router(user_routes.router)
 app.include_router(medication_routes.router)
 app.include_router(appointment_routes.router)
 app.include_router(contact_routes.router)
 app.include_router(tip_routes.router)
 
+
 # --- Scheduler Events ---
 @app.on_event("startup")
 async def startup_event():
-    """Starts the scheduler when the FastAPI application starts."""
-    scheduler.add_job(send_medication_reminders, 'interval', minutes=1, id="med_reminder_job")
-    scheduler.start()
-    print("Scheduler started...")
+    """FastAPI application start hone par scheduler ko start karta hai."""
+    try:
+        scheduler.add_job(send_medication_reminders, 'interval', minutes=1, id="med_reminder_job", replace_existing=True)
+        scheduler.start()
+        print("Scheduler started...")
+    except Exception as e:
+        print(f"Error starting scheduler: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Stops the scheduler when the FastAPI application shuts down."""
+    """FastAPI application band hone par scheduler ko rokta hai."""
     scheduler.shutdown()
     print("Scheduler stopped...")
 
+
 # --- Root Endpoint (Optional) ---
-# A simple endpoint to check if the API is running.
+# Ek simple endpoint yeh check karne ke liye ki API chal rahi hai ya nahi.
 @app.get("/")
 def root():
     return {"message": "Welcome to the Senior Health Support API! Visit /docs for API documentation."}
