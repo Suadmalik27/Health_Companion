@@ -1,4 +1,4 @@
-# frontend/pages/Medications.py
+# frontend/pages/Medications.py (Fixed - No config import)
 
 import streamlit as st
 import requests
@@ -7,7 +7,7 @@ import io
 from PIL import Image
 import base64
 import os
-from config import get_api_base_url, get_auth_headers, make_api_request
+
 # Page configuration
 st.set_page_config(
     page_title="Medications - Health Companion",
@@ -16,8 +16,51 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get API URL from secrets or use default
-API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+# Get API base URL directly
+def get_api_base_url():
+    """Get the API base URL from secrets, environment variables, or use default"""
+    try:
+        return st.secrets["API_BASE_URL"]
+    except:
+        try:
+            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+        except:
+            return "https://health-companion-backend-44ug.onrender.com"
+
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
+def make_api_request(method, endpoint, **kwargs):
+    """Make an API request with proper error handling"""
+    base_url = get_api_base_url()
+    url = f"{base_url}{endpoint}"
+    headers = get_auth_headers()
+    
+    if headers:
+        if 'headers' in kwargs:
+            kwargs['headers'].update(headers)
+        else:
+            kwargs['headers'] = headers
+    
+    # Add timeout if not specified
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 10
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        return response
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to the server. Please check your internet connection.")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("Request timed out. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
 
 # Custom CSS for styling
 def local_css():
@@ -123,26 +166,12 @@ def local_css():
 
 local_css()
 
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
 def fetch_medications():
     """Fetch user's medications"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/medications/", headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except Exception as e:
-        st.error(f"Error fetching medications: {str(e)}")
-        return []
+    response = make_api_request("GET", "/medications/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def create_medication(medication_data):
     """Create a new medication"""
@@ -150,17 +179,10 @@ def create_medication(medication_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/medications/",
-            json=medication_data,
-            headers=headers
-        )
-        if response.status_code == 201:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to create medication")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("POST", "/medications/", json=medication_data, headers=headers)
+    if response and response.status_code == 201:
+        return True, response.json()
+    return False, "Failed to create medication"
 
 def update_medication(medication_id, medication_data):
     """Update an existing medication"""
@@ -168,17 +190,10 @@ def update_medication(medication_id, medication_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.put(
-            f"{API_BASE_URL}/medications/{medication_id}",
-            json=medication_data,
-            headers=headers
-        )
-        if response.status_code == 200:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to update medication")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("PUT", f"/medications/{medication_id}", json=medication_data, headers=headers)
+    if response and response.status_code == 200:
+        return True, response.json()
+    return False, "Failed to update medication"
 
 def delete_medication(medication_id):
     """Delete a medication"""
@@ -186,15 +201,8 @@ def delete_medication(medication_id):
     if not headers:
         return False
     
-    try:
-        response = requests.delete(
-            f"{API_BASE_URL}/medications/{medication_id}",
-            headers=headers
-        )
-        return response.status_code == 204
-    except Exception as e:
-        st.error(f"Error deleting medication: {str(e)}")
-        return False
+    response = make_api_request("DELETE", f"/medications/{medication_id}", headers=headers)
+    return response and response.status_code == 204
 
 def upload_medication_photo(medication_id, file):
     """Upload photo for a medication"""
@@ -204,35 +212,19 @@ def upload_medication_photo(medication_id, file):
     
     try:
         files = {"file": (file.name, file.getvalue(), file.type)}
-        response = requests.put(
-            f"{API_BASE_URL}/medications/{medication_id}/photo",
-            files=files,
-            headers=headers
-        )
-        return response.status_code == 200
+        response = make_api_request("PUT", f"/medications/{medication_id}/photo", files=files, headers=headers)
+        return response and response.status_code == 200
     except Exception as e:
         st.error(f"Error uploading photo: {str(e)}")
         return False
 
 def get_medication_log():
     """Get today's medication log"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        from datetime import date
-        today = date.today().isoformat()
-        response = requests.get(
-            f"{API_BASE_URL}/medications/log/{today}", 
-            headers=headers
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except Exception as e:
-        st.error(f"Error fetching medication log: {str(e)}")
-        return []
+    today = datetime.now().date().isoformat()
+    response = make_api_request("GET", f"/medications/log/{today}")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def log_medication_taken(medication_id):
     """Log that a medication was taken"""
@@ -240,15 +232,8 @@ def log_medication_taken(medication_id):
     if not headers:
         return False
     
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/medications/{medication_id}/log", 
-            headers=headers
-        )
-        return response.status_code == 201
-    except Exception as e:
-        st.error(f"Error logging medication: {str(e)}")
-        return False
+    response = make_api_request("POST", f"/medications/{medication_id}/log", headers=headers)
+    return response and response.status_code == 201
 
 # Check if user is logged in
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -310,12 +295,12 @@ if st.session_state.show_form:
             try:
                 photo_url = st.session_state.edit_medication['photo_url']
                 if photo_url.startswith('/'):
-                    photo_url = f"{API_BASE_URL}{photo_url}"
-                response = requests.get(photo_url)
+                    photo_url = f"{get_api_base_url()}{photo_url}"
+                response = requests.get(photo_url, timeout=10)
                 if response.status_code == 200:
                     img = Image.open(io.BytesIO(response.content))
                     st.image(img, caption="Current Photo", width=200)
-            except Exception as e:
+            except:
                 st.write("Could not load current photo")
         
         photo_file = st.file_uploader("Upload medication photo (optional)", type=['jpg', 'jpeg', 'png'])
@@ -378,11 +363,11 @@ else:
         # Filter buttons
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            show_all = st.button("All", use_container_width=True, key="show_all")
+            show_all = st.button("All", use_container_width=True)
         with col2:
-            show_active = st.button("Active", use_container_width=True, key="show_active")
+            show_active = st.button("Active", use_container_width=True)
         with col3:
-            show_inactive = st.button("Inactive", use_container_width=True, key="show_inactive")
+            show_inactive = st.button("Inactive", use_container_width=True)
         
         # Filter medications based on selection
         filtered_medications = medications
@@ -434,8 +419,8 @@ else:
                     try:
                         photo_url = med['photo_url']
                         if photo_url.startswith('/'):
-                            photo_url = f"{API_BASE_URL}{photo_url}"
-                        response = requests.get(photo_url)
+                            photo_url = f"{get_api_base_url()}{photo_url}"
+                        response = requests.get(photo_url, timeout=10)
                         if response.status_code == 200:
                             img = Image.open(io.BytesIO(response.content))
                             buffered = io.BytesIO()
