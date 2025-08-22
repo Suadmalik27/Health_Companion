@@ -149,4 +149,4 @@ with d_col2:
                     st.markdown(f"**{app['doctor_name']}**")
                     st.caption(f"{app.get('purpose', 'Check-up')} at {datetime.fromisoformat(app['appointment_datetime']).strftime(time_format_str)}")
                     st.caption(f"📍 {app.get('location', 'Not specified')}")
-                st.page_link("pages/3_Appointments.py", label="View Details / Manage", use_container_width=True)
+                st.page_link("pages/Appointments.py", label="View Details / Manage", use_container_width=True)
