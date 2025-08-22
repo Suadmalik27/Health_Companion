@@ -1,10 +1,10 @@
-# frontend/streamlit_app.py
+# frontend/streamlit_app.py (Updated without config.py)
 
 import streamlit as st
 import requests
 from datetime import datetime
 import time
-from config import get_api_base_url, make_api_request
+import os
 
 # Page configuration
 st.set_page_config(
@@ -14,8 +14,51 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Get API base URL
-API_BASE_URL = get_api_base_url()
+# Get API base URL directly
+def get_api_base_url():
+    """Get the API base URL from secrets, environment variables, or use default"""
+    try:
+        return st.secrets["API_BASE_URL"]
+    except:
+        try:
+            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+        except:
+            return "https://health-companion-backend-44ug.onrender.com"
+
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
+def make_api_request(method, endpoint, **kwargs):
+    """Make an API request with proper error handling"""
+    base_url = get_api_base_url()
+    url = f"{base_url}{endpoint}"
+    headers = get_auth_headers()
+    
+    if headers:
+        if 'headers' in kwargs:
+            kwargs['headers'].update(headers)
+        else:
+            kwargs['headers'] = headers
+    
+    # Add timeout if not specified
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 10
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        return response
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to the server. Please check your internet connection.")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("Request timed out. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
 
 # Custom CSS for styling
 def local_css():
