@@ -1,4 +1,4 @@
-# backend/app/routes/user_routes.py (Fully Updated with Password Reset)
+# backend/app/routes/user_routes.py (Fixed Email Configuration)
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
@@ -30,16 +30,18 @@ UPLOAD_DIRECTORY = "./uploaded_images"
 os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
 
 # --- EMAIL CONFIGURATION FOR PASSWORD RESET ---
-conf = ConnectionConfig(
-    MAIL_USERNAME = settings.MAIL_USERNAME,
-    MAIL_PASSWORD = settings.MAIL_PASSWORD,
-    MAIL_FROM = settings.MAIL_FROM,
-    MAIL_PORT = settings.MAIL_PORT,
-    MAIL_SERVER = settings.MAIL_SERVER,
-    MAIL_STARTTLS = True,
-    MAIL_SSL_TLS = False,
-    USE_CREDENTIALS = True,
-)
+# Yeh function banaya gaya hai taaki har baar naya configuration object na banana pade
+def get_email_config():
+    return ConnectionConfig(
+        MAIL_USERNAME=settings.MAIL_USERNAME,
+        MAIL_PASSWORD=settings.MAIL_PASSWORD,
+        MAIL_FROM=settings.MAIL_FROM,
+        MAIL_PORT=settings.MAIL_PORT,
+        MAIL_SERVER=settings.MAIL_SERVER,
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        USE_CREDENTIALS=True,
+    )
 
 # --- Authentication Endpoints ---
 
@@ -108,7 +110,7 @@ async def forgot_password(
         subtype="html"
     )
 
-    fm = FastMail(conf)
+    fm = FastMail(get_email_config())
     background_tasks.add_task(fm.send_message, message)
     return {"message": "If an account with that email exists, a reset link has been sent."}
 
