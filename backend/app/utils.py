@@ -1,4 +1,4 @@
-# /backend/app/utils.py (New File)
+# /backend/app/utils.py (Fixed Version)
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 from .config import settings
@@ -6,6 +6,7 @@ from .config import settings
 async def send_email(subject: str, recipients: list, body: str):
     """A reusable utility function for sending emails."""
     
+    # Create connection configuration
     conf = ConnectionConfig(
         MAIL_USERNAME=settings.MAIL_USERNAME,
         MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -17,6 +18,7 @@ async def send_email(subject: str, recipients: list, body: str):
         USE_CREDENTIALS=True,
     )
 
+    # Create message
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
@@ -24,5 +26,6 @@ async def send_email(subject: str, recipients: list, body: str):
         subtype="html"
     )
 
+    # Send message
     fm = FastMail(conf)
     await fm.send_message(message)
