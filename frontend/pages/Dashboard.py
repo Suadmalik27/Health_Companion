@@ -67,6 +67,9 @@ def handle_med_taken(med_id):
 # --- MAIN DASHBOARD UI ---
 st.set_page_config(page_title="Dashboard", layout="wide")
 
+st.header(f"👋 Welcome Back!")
+st.write(f"Here's your summary for **{date.today().strftime('%A, %d %B %Y')}**.")
+
 with st.spinner("Loading your dashboard..."):
     dashboard_data = load_dashboard_data(api)
     user_profile = dashboard_data.get("user_profile")
@@ -95,26 +98,16 @@ s_col1, s_col2, s_col3 = st.columns(3)
 with s_col1:
     total_meds = len(today_medications)
     meds_taken_count = len(st.session_state.get('taken_med_ids', []))
-    st.markdown(f"""
-    <div class="card" style="padding: 1rem; border-radius: 10px; background-color: #e8f5e9; text-align: center;">
-        <h3 style="color: #4caf50;">✅ Medicines Taken</h3>
-        <p style="font-size: 2.5rem; font-weight: bold; margin: 0; color: #4caf50;">{meds_taken_count} / {total_meds}</p>
-    </div>""", unsafe_allow_html=True)
+    st.metric(label="✅ Medicines Taken", value=f"{meds_taken_count} / {total_meds}")
 
 with s_col2:
-    st.markdown(f"""
-    <div class="card" style="padding: 1rem; border-radius: 10px; background-color: #e3f2fd; text-align: center;">
-        <h3 style="color: #1c83e1;">🗓️ Appointments Today</h3>
-        <p style="font-size: 2.5rem; font-weight: bold; margin: 0; color: #1c83e1;">{len(today_appointments)}</p>
-    </div>""", unsafe_allow_html=True)
+    st.metric(label="🗓️ Appointments Today", value=len(today_appointments))
+
 with s_col3:
     tip_content = health_tip['content'] if health_tip else "Stay hydrated."
     tip_category = health_tip['category'] if health_tip else "Health Tip"
-    st.markdown(f"""
-    <div class="card" style="padding: 1rem; border-radius: 10px; background-color: #fff3e0; text-align: center;">
-        <h3 style="color: #ff9800;">💡 {tip_category}</h3>
-        <p style="font-size: 1rem; margin: 0;">{tip_content}</p>
-    </div>""", unsafe_allow_html=True)
+    st.markdown(f"**💡 {tip_category}**")
+    st.write(tip_content)
 
 st.divider()
 
@@ -156,3 +149,8 @@ with d_col2:
                     st.markdown(f"**{app['doctor_name']}**")
                     st.caption(f"{app.get('purpose', 'Check-up')} at {datetime.fromisoformat(app['appointment_datetime']).strftime(time_format_str)}")
                     st.caption(f"📍 {app.get('location', 'Not specified')}")
+                
+                # --- YEH BADLAV HUA HAI ---
+                # Humne ek link add kiya hai jo seedha Appointments page par le jayega.
+                st.page_link("pages/3_Appointments.py", label="View Details / Manage", use_container_width=True)
+                # --- BADLAV KHATAM ---
