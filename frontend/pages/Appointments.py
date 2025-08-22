@@ -5,6 +5,7 @@ import requests
 from datetime import datetime
 
 # --- CONFIGURATION & API CLIENT ---
+API_BASE_URL ="https://health-companion-backend-44ug.onrender.com"
 if "API_BASE_URL" in st.secrets:
     API_BASE_URL = st.secrets["API_BASE_URL"]
 else:
