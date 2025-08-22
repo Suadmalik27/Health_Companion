@@ -8,6 +8,7 @@ from PIL import Image
 import io
 import base64
 import os
+from config import get_api_base_url, get_auth_headers, make_api_request
 
 # Page configuration
 st.set_page_config(
