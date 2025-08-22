@@ -18,7 +18,7 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self.get_headers(), timeout=10, **kwargs)
         except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
@@ -50,6 +50,8 @@ def load_dashboard_data(_api_client: ApiClient):
     return data
 
 # --- CALLBACK FUNCTION FOR BUTTONS ---
+# --- YEH BADLAV HUA HAI (1) ---
+# st.rerun() ko yahan se hata diya gaya hai kyunki on_click ise automatically karta hai.
 def handle_med_taken(med_id):
     with st.spinner("Logging..."):
         response = api.post(f"/medications/{med_id}/log")
@@ -60,9 +62,9 @@ def handle_med_taken(med_id):
             st.session_state.taken_med_ids = []
         st.session_state.taken_med_ids.append(med_id)
         st.cache_data.clear() # Clear cache to refetch data
-        st.rerun() # Rerun to update the UI instantly
     else:
         st.error("Failed to log medication.")
+# --- BADLAV KHATAM ---
 
 # --- MAIN DASHBOARD UI ---
 st.set_page_config(page_title="Dashboard", layout="wide")
@@ -76,15 +78,17 @@ with st.spinner("Loading your dashboard..."):
     all_appointments = dashboard_data.get("appointments")
     all_medications = dashboard_data.get("medications")
     health_tip = dashboard_data.get("tip")
-    taken_med_ids_from_api = dashboard_data.get("med_log", [])
+    taken_med_ids_from_api = dashboard_data.get("med_log") # None ho sakta hai
 
-if not all_medications:
+if all_medications is None:
     st.error("Could not load medication data. Please try refreshing."); st.stop()
 
-# Robustly initialize session state for taken medications
+# --- YEH BADLAV HUA HAI (2) ---
+# Is line ko theek kar diya gaya hai taaki yeh seedha IDs ki list ko handle kar sake.
 session_taken = st.session_state.get('taken_med_ids', []) or []
-api_taken = [log['medication_id'] for log in taken_med_ids_from_api] if taken_med_ids_from_api else []
+api_taken = taken_med_ids_from_api or [] # Ab yeh seedha list [1, 5] ko handle karega
 st.session_state.taken_med_ids = list(set(session_taken + api_taken))
+# --- BADLAV KHATAM ---
 
 time_format_pref = user_profile.get("time_format", "12h") if user_profile else "12h"
 time_format_str = "%I:%M %p" if time_format_pref == "12h" else "%H:%M"
@@ -149,8 +153,4 @@ with d_col2:
                     st.markdown(f"**{app['doctor_name']}**")
                     st.caption(f"{app.get('purpose', 'Check-up')} at {datetime.fromisoformat(app['appointment_datetime']).strftime(time_format_str)}")
                     st.caption(f"📍 {app.get('location', 'Not specified')}")
-                
-                # --- YEH BADLAV HUA HAI ---
-                # Humne ek link add kiya hai jo seedha Appointments page par le jayega.
                 st.page_link("pages/3_Appointments.py", label="View Details / Manage", use_container_width=True)
-                # --- BADLAV KHATAM ---
