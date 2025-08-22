@@ -396,19 +396,19 @@ def main():
         # Create sidebar navigation
         create_sidebar()
         
-        # Show main content based on current page
-        if st.session_state.current_page == "Dashboard":
-            show_dashboard()
-        elif st.session_state.current_page == "Medications":
-            st.switch_page("pages/Medications.py")
-        elif st.session_state.current_page == "Appointments":
-            st.switch_page("pagesAppointments.py")
-        elif st.session_state.current_page == "Contacts":
-            st.switch_page("pages/Contacts.py")
-        elif st.session_state.current_page == "Health_Tips":
-            st.switch_page("pages/Health_Tips.py")
-        elif st.session_state.current_page == "Profile":
-            st.switch_page("pages/Profile.py")
+       # In the main application controller section:
+    if st.session_state.current_page == "Dashboard":
+        show_dashboard()
+    elif st.session_state.current_page == "Medications":
+        st.switch_page("pages/Medications.py")
+    elif st.session_state.current_page == "Appointments":
+        st.switch_page("pages/Appointments.py")
+    elif st.session_state.current_page == "Contacts":
+        st.switch_page("pages/Contacts.py")
+    elif st.session_state.current_page == "Health_Tips":
+        st.switch_page("pages/Health_Tips.py")
+    elif st.session_state.current_page == "Profile":
+        st.switch_page("pages/Profile.py")
         
         # Emergency SOS bar (only show if not on contacts page)
         if st.session_state.current_page != "Contacts":
