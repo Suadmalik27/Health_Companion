@@ -433,7 +433,7 @@ with col2:
             <i>💡</i>
             <p>No health tips available</p>
         </div>
-        ""', unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     # Quick Stats
     st.markdown("### 📊 Quick Stats")
