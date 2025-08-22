@@ -1,13 +1,11 @@
-# /frontend/pages/6_Health_Tips.py (New Page for Tip Management)
+# /frontend/pages/6_Health_Tips.py
 
 import streamlit as st
 import requests
 
-# --- CONFIGURATION & API CLIENT (Required on every page) ---
-if "API_BASE_URL" in st.secrets:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-else:
-    API_BASE_URL = "http://127.0.0.1:8000"
+# --- CONFIGURATION & API CLIENT ---
+# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 # --- API CLIENT CLASS (Robust Version) ---
 class ApiClient:
@@ -19,8 +17,8 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
-        except requests.exceptions.ConnectionError:
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
+        except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def post(self, endpoint, json=None): return self._make_request("POST", endpoint, json=json)
     def get(self, endpoint): return self._make_request("GET", endpoint)
@@ -44,7 +42,7 @@ st.write("Here you can add, edit, or remove the health tips that appear on the d
 with st.expander("➕ Add a New Health Tip"):
     with st.form("new_tip_form", clear_on_submit=True):
         category = st.text_input("Category", value="General", placeholder="e.g., Diet, Exercise")
-        content = st.text_area("Tip Content", placeholder="Enter the health tip here...")
+        content = st.text_area("Tip Content*", placeholder="Enter the health tip here...")
         
         if st.form_submit_button("Add Tip", use_container_width=True):
             if not content:
