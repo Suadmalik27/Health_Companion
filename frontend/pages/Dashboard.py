@@ -4,6 +4,11 @@ import streamlit as st
 import requests
 from datetime import datetime, date, timedelta
 
+# --- YEH BADLAV HUA HAI ---
+# st.set_page_config() ko script mein sabse pehle Streamlit command hona chahiye.
+st.set_page_config(page_title="Dashboard", layout="wide")
+# --- BADLAV KHATAM ---
+
 # --- CONFIGURATION & API CLIENT ---
 API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
@@ -40,6 +45,7 @@ st.markdown("""
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     transition: all 0.2s ease-in-out;
     height: 100%;
+    border: 1px solid #e0e0e0;
 }
 .card:hover {
     transform: translateY(-5px);
@@ -101,8 +107,6 @@ def handle_med_taken(med_id):
         st.error("Failed to log medication.")
 
 # --- MAIN DASHBOARD UI ---
-st.set_page_config(page_title="Dashboard", layout="wide")
-
 with st.spinner("Loading your dashboard..."):
     dashboard_data = load_dashboard_data(api)
     user_profile = dashboard_data.get("user_profile")
