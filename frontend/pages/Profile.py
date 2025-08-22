@@ -1,14 +1,12 @@
-# frontend/pages/5_Profile.py (100% Complete with Theme Selector)
+# frontend/pages/5_Profile.py
 
 import streamlit as st
 import requests
 from datetime import datetime
 
 # --- CONFIGURATION & API CLIENT ---
-if "API_BASE_URL" in st.secrets:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-else:
-    API_BASE_URL = "http://127.0.0.1:8000"
+# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 # --- API CLIENT CLASS ---
 class ApiClient:
@@ -20,11 +18,11 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
-        except requests.exceptions.ConnectionError:
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
+        except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
-    def put(self, endpoint, json=None, files=None): return self._make_request("PUT", endpoint, json=json, files=files)
+    def put(self, endpoint, json=None): return self._make_request("PUT", endpoint, json=json)
     def delete(self, endpoint): return self._make_request("DELETE", endpoint)
 
 api = ApiClient(API_BASE_URL)
@@ -56,19 +54,19 @@ with col1:
         st.image(full_image_url, caption="Current Profile Picture")
     else:
         st.image("https://via.placeholder.com/300x300.png?text=No+Photo", caption="Upload a photo")
-    with st.form("photo_upload_form", clear_on_submit=True):
-        uploaded_file = st.file_uploader("Change your profile picture", type=["png", "jpg", "jpeg"])
-        submitted = st.form_submit_button("Upload New Photo", use_container_width=True)
-        if submitted and uploaded_file is not None:
-            with st.spinner("Uploading..."):
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                upload_response = requests.put(f"{API_BASE_URL}/users/me/photo", headers=api._get_headers(), files=files)
-            if upload_response and upload_response.status_code == 200:
-                st.success("Photo updated!"); st.rerun()
-            else:
-                st.error(f"Failed to upload photo.")
-        elif submitted and uploaded_file is None:
-            st.warning("Please select a file to upload.")
+    
+    with st.expander("Change Profile Photo"):
+        uploaded_file = st.file_uploader("Upload a new photo", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+        if uploaded_file:
+            if st.button("Upload New Photo", use_container_width=True):
+                with st.spinner("Uploading..."):
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                    # Use a direct requests call for multipart file upload
+                    upload_response = requests.put(f"{API_BASE_URL}/users/me/photo", headers=api._get_headers(), files=files)
+                if upload_response and upload_response.status_code == 200:
+                    st.success("Photo updated!"); st.rerun()
+                else:
+                    st.error("Failed to upload photo.")
 
 with col2:
     with st.form("update_profile_form"):
@@ -76,26 +74,21 @@ with col2:
             st.subheader("📝 Update Your Information")
             full_name = st.text_input("Full Name", value=user_data.get('full_name', ''))
             dob_val = user_data.get('date_of_birth')
-            try:
-                dob_default = datetime.fromisoformat(dob_val).date() if dob_val else None
-            except:
-                dob_default = None
-            dob = st.date_input("Date of Birth", value=dob_default)
+            dob_default = None
+            if dob_val:
+                try: dob_default = datetime.fromisoformat(dob_val).date()
+                except (ValueError, TypeError): pass
+            dob = st.date_input("Date of Birth", value=dob_default, max_value=datetime.today().date())
             address = st.text_area("Address", value=user_data.get('address', ''))
 
         with st.container(border=True):
             st.subheader("⚙️ Settings")
-            time_format = st.radio(
-                "Preferred Time Format", ("12h", "24h"),
-                index=0 if user_data.get('time_format', '12h') == '12h' else 1,
-                horizontal=True, help="Choose how times are displayed across the app."
-            )
-            st.divider()
+            current_theme_index = 1 if user_data.get('theme', 'light') == 'dark' else 0
             theme = st.radio(
                 "App Theme", ["light", "dark"],
                 captions=["☀️ Light Mode", "🌙 Dark Mode"],
-                index=0 if user_data.get('theme', 'light') == 'light' else 1,
-                horizontal=True, help="Choose a theme that's easy on your eyes."
+                index=current_theme_index, horizontal=True,
+                help="Choose a theme that's easy on your eyes."
             )
 
         if st.form_submit_button("Save Changes", use_container_width=True, type="primary"):
@@ -104,11 +97,12 @@ with col2:
                     "full_name": full_name,
                     "date_of_birth": dob.isoformat() if dob else None,
                     "address": address,
-                    "time_format": time_format,
                     "theme": theme
                 }
                 update_response = api.put("/users/me", json=update_data)
             if update_response and update_response.status_code == 200:
+                # Update theme in session state immediately for instant change
+                st.session_state['theme'] = theme
                 st.success("Profile and settings updated successfully!"); st.rerun()
             else:
                 st.error("Failed to update profile.")
@@ -130,19 +124,17 @@ with col2:
                     if pass_response and pass_response.status_code == 200:
                         st.success("Password updated successfully!")
                     else:
-                        error_detail = "An error occurred."
-                        if pass_response and pass_response.text:
-                            try:
-                                error_detail = pass_response.json().get('detail', error_detail)
-                            except:
-                                pass
+                        error_detail = "Incorrect current password or other error."
+                        if pass_response is not None and pass_response.text:
+                            try: error_detail = pass_response.json().get('detail', error_detail)
+                            except: pass
                         st.error(f"Failed to update password: {error_detail}")
 
 st.divider()
 with st.container(border=True):
     st.subheader("🗑️ Delete Account")
     st.warning("DANGER ZONE: This is permanent. All your data will be erased.", icon="⚠️")
-    agree_to_delete = st.checkbox("I understand the consequences and wish to permanently delete my account.", key="delete_confirm")
+    agree_to_delete = st.checkbox("I understand and wish to permanently delete my account.", key="delete_confirm")
     if st.button("Yes, Delete My Account Permanently", type="primary", disabled=not agree_to_delete, use_container_width=True):
         with st.spinner("Deleting your account..."):
             delete_response = api.delete("/users/me")
