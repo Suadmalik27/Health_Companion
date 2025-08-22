@@ -1,12 +1,12 @@
-# /backend/app/utils.py (Fixed Version)
+# /backend/app/utils.py (Updated for Gmail SMTP)
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 from .config import settings
 
 async def send_email(subject: str, recipients: list, body: str):
-    """A reusable utility function for sending emails."""
+    """A reusable utility function for sending emails with Gmail SMTP."""
     
-    # Create connection configuration
+    # Create connection configuration for Gmail
     conf = ConnectionConfig(
         MAIL_USERNAME=settings.MAIL_USERNAME,
         MAIL_PASSWORD=settings.MAIL_PASSWORD,
@@ -16,9 +16,9 @@ async def send_email(subject: str, recipients: list, body: str):
         MAIL_STARTTLS=True,
         MAIL_SSL_TLS=False,
         USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True
     )
 
-    # Create message
     message = MessageSchema(
         subject=subject,
         recipients=recipients,
@@ -26,6 +26,10 @@ async def send_email(subject: str, recipients: list, body: str):
         subtype="html"
     )
 
-    # Send message
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    try:
+        fm = FastMail(conf)
+        await fm.send_message(message)
+        print(f"Email sent successfully to {recipients}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        raise
