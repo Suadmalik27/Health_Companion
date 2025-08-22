@@ -1,4 +1,4 @@
-# frontend/pages/Appointments.py
+# frontend/pages/Appointments.py (Fixed)
 
 import streamlit as st
 import requests
@@ -8,8 +8,6 @@ from PIL import Image
 import io
 import base64
 import os
-from config import get_api_base_url, get_auth_headers, make_api_request
-
 
 # Page configuration
 st.set_page_config(
@@ -19,8 +17,51 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get API URL from secrets or use default
-API_BASE_URL = st.secrets.get("https://health-companion-backend-44ug.onrender.com")
+# Get API base URL directly
+def get_api_base_url():
+    """Get the API base URL from secrets, environment variables, or use default"""
+    try:
+        return st.secrets["API_BASE_URL"]
+    except:
+        try:
+            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+        except:
+            return "https://health-companion-backend-44ug.onrender.com"
+
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
+def make_api_request(method, endpoint, **kwargs):
+    """Make an API request with proper error handling"""
+    base_url = get_api_base_url()
+    url = f"{base_url}{endpoint}"
+    headers = get_auth_headers()
+    
+    if headers:
+        if 'headers' in kwargs:
+            kwargs['headers'].update(headers)
+        else:
+            kwargs['headers'] = headers
+    
+    # Add timeout if not specified
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 10
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        return response
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to the server. Please check your internet connection.")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("Request timed out. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
 
 # Custom CSS for styling
 def local_css():
@@ -152,30 +193,16 @@ def local_css():
 
 local_css()
 
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
 def fetch_appointments(start_date=None, end_date=None):
     """Fetch user's appointments with optional date range"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
+    url = "/appointments/"
+    if start_date and end_date:
+        url += f"?start_date={start_date}&end_date={end_date}"
     
-    try:
-        url = f"{API_BASE_URL}/appointments/"
-        if start_date and end_date:
-            url += f"?start_date={start_date}&end_date={end_date}"
-        
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except Exception as e:
-        st.error(f"Error fetching appointments: {str(e)}")
-        return []
+    response = make_api_request("GET", url)
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def create_appointment(appointment_data):
     """Create a new appointment"""
@@ -183,17 +210,10 @@ def create_appointment(appointment_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/appointments/",
-            json=appointment_data,
-            headers=headers
-        )
-        if response.status_code == 201:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to create appointment")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("POST", "/appointments/", json=appointment_data, headers=headers)
+    if response and response.status_code == 201:
+        return True, response.json()
+    return False, "Failed to create appointment"
 
 def update_appointment(appointment_id, appointment_data):
     """Update an existing appointment"""
@@ -201,17 +221,10 @@ def update_appointment(appointment_id, appointment_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.put(
-            f"{API_BASE_URL}/appointments/{appointment_id}",
-            json=appointment_data,
-            headers=headers
-        )
-        if response.status_code == 200:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to update appointment")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("PUT", f"/appointments/{appointment_id}", json=appointment_data, headers=headers)
+    if response and response.status_code == 200:
+        return True, response.json()
+    return False, "Failed to update appointment"
 
 def delete_appointment(appointment_id):
     """Delete an appointment"""
@@ -219,15 +232,8 @@ def delete_appointment(appointment_id):
     if not headers:
         return False
     
-    try:
-        response = requests.delete(
-            f"{API_BASE_URL}/appointments/{appointment_id}",
-            headers=headers
-        )
-        return response.status_code == 204
-    except Exception as e:
-        st.error(f"Error deleting appointment: {str(e)}")
-        return False
+    response = make_api_request("DELETE", f"/appointments/{appointment_id}", headers=headers)
+    return response and response.status_code == 204
 
 def upload_appointment_photo(appointment_id, file):
     """Upload photo for an appointment"""
@@ -237,12 +243,8 @@ def upload_appointment_photo(appointment_id, file):
     
     try:
         files = {"file": (file.name, file.getvalue(), file.type)}
-        response = requests.put(
-            f"{API_BASE_URL}/appointments/{appointment_id}/photo",
-            files=files,
-            headers=headers
-        )
-        return response.status_code == 200
+        response = make_api_request("PUT", f"/appointments/{appointment_id}/photo", files=files, headers=headers)
+        return response and response.status_code == 200
     except Exception as e:
         st.error(f"Error uploading photo: {str(e)}")
         return False
@@ -285,10 +287,6 @@ def generate_calendar(year, month, appointments):
                 if cols[i].button(str(day), key=f"day_{day}", use_container_width=True):
                     st.session_state.selected_date = current_date
                     st.rerun()
-                
-                # Add some visual indicators using HTML
-                day_html = f"<div class='{day_class}'>{day}</div>"
-                cols[i].markdown(day_html, unsafe_allow_html=True)
 
 def parse_appointment_datetime(datetime_str):
     """Parse appointment datetime from string"""
@@ -400,7 +398,7 @@ if st.session_state.view_mode == "calendar":
                         </div>
                         <p class="appointment-purpose">{appointment.get('purpose', 'General checkup')}</p>
                         <p class="appointment-location">📍 {appointment.get('location', 'Not specified')}</p>
-                        <span class="appointment-status status-{status_class}">{status_text}</span>
+                        <span class="appointment-status status-{status_class}>{status_text}</span>
                     </div>
                     """, unsafe_allow_html=True)
                 
@@ -413,11 +411,13 @@ if st.session_state.view_mode == "calendar":
                         if delete_appointment(appointment['id']):
                             st.success("Appointment deleted successfully")
                             st.rerun()
+                        else:
+                            st.error("Failed to delete appointment")
         else:
             st.markdown("""
             <div class="empty-state">
-                <div class="empty-state-icon">📅</div>
-                <h3>No appointments scheduled</h3>
+                <i>📅</i>
+                <p>No appointments scheduled</p>
                 <p>No appointments scheduled for this date</p>
             </div>
             """, unsafe_allow_html=True)
@@ -463,8 +463,8 @@ else:
                     try:
                         photo_url = appointment['photo_url']
                         if photo_url.startswith('/'):
-                            photo_url = f"{API_BASE_URL}{photo_url}"
-                        response = requests.get(photo_url)
+                            photo_url = f"{get_api_base_url()}{photo_url}"
+                        response = requests.get(photo_url, timeout=10)
                         if response.status_code == 200:
                             img = Image.open(io.BytesIO(response.content))
                             buffered = io.BytesIO()
@@ -483,7 +483,7 @@ else:
                     </div>
                     <p class="appointment-purpose">{appointment.get('purpose', 'General checkup')}</p>
                     <p class="appointment-location">📍 {appointment.get('location', 'Not specified')}</p>
-                    <span class="appointment-status status-{status_class}">{status_text}</span>
+                    <span class="appointment-status status-{status_class}>{status_text}</span>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -533,8 +533,8 @@ if st.session_state.show_form:
             try:
                 photo_url = st.session_state.edit_appointment['photo_url']
                 if photo_url.startswith('/'):
-                    photo_url = f"{API_BASE_URL}{photo_url}"
-                response = requests.get(photo_url)
+                    photo_url = f"{get_api_base_url()}{photo_url}"
+                response = requests.get(photo_url, timeout=10)
                 if response.status_code == 200:
                     img = Image.open(io.BytesIO(response.content))
                     st.image(img, caption="Current Doctor Photo", width=200)
