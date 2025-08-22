@@ -17,7 +17,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL")
 # === DEBUGGING KE LIYE NAYI LINE ===
 # Yeh line aapke live app par ek message dikhayegi jisse pata chalega ki
 # app kaun sa backend URL istemal karne ki koshish kar raha hai.
-st.warning(f"DEBUG ye erro q nahi ja rah hai MODE: App is trying to connect to API at: {API_BASE_URL}")
+st.warning(f"DEBUG ye erro q nahi ja rah hai MODE: wahi wahi whi App is trying to connect to API at: {API_BASE_URL}")
 # ==================================
 
 # --- API CLIENT CLASS ---
