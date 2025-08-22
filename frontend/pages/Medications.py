@@ -1,168 +1,480 @@
-# frontend/pages/2_Medications.py
+# frontend/pages/Medications.py
 
 import streamlit as st
 import requests
-from datetime import datetime
+from datetime import datetime, time
+import io
+from PIL import Image
+import base64
 
-# --- CONFIGURATION & API CLIENT ---
-# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
+# Page configuration
+st.set_page_config(
+    page_title="Medications - Health Companion",
+    page_icon="💊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for styling
+def local_css():
+    st.markdown("""
+    <style>
+    .medication-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    .medication-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border-left: 4px solid #4CAF50;
+    }
+    .medication-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+    .medication-image {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    .medication-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .medication-name {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #2c3e50;
+        margin: 0;
+    }
+    .medication-dosage {
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .medication-time {
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        display: inline-block;
+    }
+    .medication-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
+    }
+    .status-active {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+    .status-inactive {
+        background: #ffebee;
+        color: #c62828;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #78909c;
+    }
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+    .form-container {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    .stButton button {
+        border-radius: 20px;
+        padding: 0.5rem 1.5rem;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+local_css()
+
+# API base URL
 API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
-# --- API CLIENT CLASS (Robust Version) ---
-class ApiClient:
-    def __init__(self, base_url):
-        self.base_url = base_url
-    def _get_headers(self):
-        token = st.session_state.get("token", None)
-        if token: return {"Authorization": f"Bearer {token}"}
-        return {}
-    def _make_request(self, method, endpoint, **kwargs):
-        try:
-            # Setting a timeout for all requests
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
-        except requests.exceptions.RequestException:
-            st.error("Connection Error: Could not connect to the backend server."); return None
-    def post(self, endpoint, json=None): return self._make_request("POST", endpoint, json=json)
-    def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
-    def put(self, endpoint, json=None): return self._make_request("PUT", endpoint, json=json)
-    def delete(self, endpoint): return self._make_request("DELETE", endpoint)
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
 
-api = ApiClient(API_BASE_URL)
+def fetch_medications():
+    """Fetch user's medications"""
+    headers = get_auth_headers()
+    if not headers:
+        return []
+    
+    try:
+        response = requests.get(f"{API_BASE_URL}/medications/", headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except Exception as e:
+        st.error(f"Error fetching medications: {str(e)}")
+        return []
 
-# --- SECURITY CHECK ---
-if 'token' not in st.session_state:
-    st.warning("Please login first to access this page."); st.stop()
+def create_medication(medication_data):
+    """Create a new medication"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/medications/",
+            json=medication_data,
+            headers=headers
+        )
+        if response.status_code == 201:
+            return True, response.json()
+        return False, response.json().get("detail", "Failed to create medication")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="My Medications", layout="wide")
+def update_medication(medication_id, medication_data):
+    """Update an existing medication"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    try:
+        response = requests.put(
+            f"{API_BASE_URL}/medications/{medication_id}",
+            json=medication_data,
+            headers=headers
+        )
+        if response.status_code == 200:
+            return True, response.json()
+        return False, response.json().get("detail", "Failed to update medication")
+    except Exception as e:
+        return False, f"Error: {str(e)}"
 
-# --- MEDICATION PAGE CONTENT ---
-st.header("💊 My Medications")
-st.write("Manage your daily medication schedule here. Add photos to easily identify your medicines.")
+def delete_medication(medication_id):
+    """Delete a medication"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    try:
+        response = requests.delete(
+            f"{API_BASE_URL}/medications/{medication_id}",
+            headers=headers
+        )
+        return response.status_code == 204
+    except Exception as e:
+        st.error(f"Error deleting medication: {str(e)}")
+        return False
 
-# --- ADD NEW MEDICATION FORM ---
-with st.expander("➕ Add New Medication"):
-    with st.form("new_med_form", clear_on_submit=True):
-        name = st.text_input("Medication Name*", placeholder="e.g., Vitamin D")
-        dosage = st.text_input("Dosage*", placeholder="e.g., 1 tablet")
-        timing = st.time_input("Time to Take")
-        if st.form_submit_button("Add Medication", use_container_width=True):
+def upload_medication_photo(medication_id, file):
+    """Upload photo for a medication"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    try:
+        files = {"file": (file.name, file.getvalue(), file.type)}
+        response = requests.put(
+            f"{API_BASE_URL}/medications/{medication_id}/photo",
+            files=files,
+            headers=headers
+        )
+        return response.status_code == 200
+    except Exception as e:
+        st.error(f"Error uploading photo: {str(e)}")
+        return False
+
+def get_medication_log():
+    """Get today's medication log"""
+    headers = get_auth_headers()
+    if not headers:
+        return []
+    
+    try:
+        from datetime import date
+        today = date.today()
+        response = requests.get(
+            f"{API_BASE_URL}/medications/log/{today}", 
+            headers=headers
+        )
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except:
+        return []
+
+def log_medication_taken(medication_id):
+    """Log that a medication was taken"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/medications/{medication_id}/log", 
+            headers=headers
+        )
+        return response.status_code == 201
+    except:
+        return False
+
+# Check if user is logged in
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("Please log in to access medications")
+    st.stop()
+
+# Initialize session state
+if 'edit_medication' not in st.session_state:
+    st.session_state.edit_medication = None
+if 'show_form' not in st.session_state:
+    st.session_state.show_form = False
+
+# Page header
+st.title("💊 Medication Management")
+st.markdown("Manage your medications, set reminders, and track your daily intake")
+
+# Fetch data
+medications = fetch_medications()
+medication_log = get_medication_log()
+taken_meds = set(medication_log)
+
+# Add/Edit Medication Form
+if st.session_state.show_form:
+    st.markdown("### 📝 " + ("Edit Medication" if st.session_state.edit_medication else "Add New Medication"))
+    
+    with st.form("medication_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            name = st.text_input("Medication Name", 
+                               value=st.session_state.edit_medication['name'] if st.session_state.edit_medical else "",
+                               placeholder="e.g., Metformin, Lisinopril")
+            dosage = st.text_input("Dosage",
+                                 value=st.session_state.edit_medication['dosage'] if st.session_state.edit_medical else "",
+                                 placeholder="e.g., 500mg, 10mg once daily")
+        
+        with col2:
+            timing = st.time_input("Time to take",
+                                 value=datetime.strptime(st.session_state.edit_medication['timing'], "%H:%M:%S").time() if st.session_state.edit_medical else time(9, 0))
+            is_active = st.checkbox("Active", value=st.session_state.edit_medication.get('is_active', True) if st.session_state.edit_medical else True)
+        
+        # Photo upload
+        if st.session_state.edit_medication:
+            if st.session_state.edit_medication.get('photo_url'):
+                try:
+                    response = requests.get(st.session_state.edit_medication['photo_url'])
+                    img = Image.open(io.BytesIO(response.content))
+                    st.image(img, caption="Current Photo", width=200)
+                except:
+                    st.write("Could not load current photo")
+        
+        photo_file = st.file_uploader("Upload medication photo (optional)", type=['jpg', 'jpeg', 'png'])
+        
+        submitted = st.form_submit_button("💾 Save Medication")
+        
+        if submitted:
             if not name or not dosage:
-                st.warning("Please provide a name and dosage.")
+                st.error("Please provide medication name and dosage")
             else:
-                with st.spinner("Adding..."):
-                    response = api.post("/medications/", json={"name": name, "dosage": dosage, "timing": timing.strftime("%H:%M:%S")})
-                if response and response.status_code == 201:
-                    st.success("Medication added successfully!"); st.rerun()
-                else:
-                    st.error("Failed to add medication.")
-
-# --- DISPLAY ACTIVE MEDICATIONS ---
-st.subheader("Your Active Medications")
-
-with st.spinner("Loading medications..."):
-    response = api.get("/medications/")
-
-if response and response.status_code == 200:
-    all_meds = sorted(response.json(), key=lambda x: datetime.strptime(x['timing'], '%H:%M:%S').time())
-    active_meds = [m for m in all_meds if m.get('is_active', True)]
-    inactive_meds = [m for m in all_meds if not m.get('is_active', True)]
-
-    if not active_meds:
-        st.info("You have no active medications. Add one using the form above.")
-
-    for med in active_meds:
-        with st.container(border=True):
-            col1, col2 = st.columns([1, 4])
-
-            with col1:
-                pfp_url = med.get("photo_url")
-                if pfp_url:
-                    full_image_url = f"{API_BASE_URL}/{pfp_url}"
-                    st.image(full_image_url, width=120)
-                else:
-                    st.image("https://via.placeholder.com/120x120.png?text=No+Photo", width=120)
-
-            with col2:
-                if st.session_state.get('editing_med_id') == med['id']:
-                    with st.form(key=f"edit_form_{med['id']}"):
-                        st.subheader(f"Editing: {med['name']}")
-                        new_name = st.text_input("Name", value=med['name'])
-                        new_dosage = st.text_input("Dosage", value=med['dosage'])
-                        new_timing = st.time_input("Time", value=datetime.strptime(med['timing'], '%H:%M:%S').time())
-                        c1_form, c2_form = st.columns(2)
-                        with c1_form:
-                            if st.form_submit_button("Save Changes", use_container_width=True):
-                                with st.spinner("Saving..."):
-                                    update_data = {"name": new_name, "dosage": new_dosage, "timing": new_timing.strftime("%H:%M:%S")}
-                                    put_response = api.put(f"/medications/{med['id']}", json=update_data)
-                                if put_response and put_response.status_code == 200:
-                                    st.success("Medication updated!"); del st.session_state['editing_med_id']; st.rerun()
-                                else:
-                                    st.error("Failed to update medication.")
-                        with c2_form:
-                            if st.form_submit_button("Cancel", type="secondary", use_container_width=True):
-                                del st.session_state['editing_med_id']; st.rerun()
+                medication_data = {
+                    "name": name,
+                    "dosage": dosage,
+                    "timing": timing.strftime("%H:%M:%S"),
+                    "is_active": is_active
+                }
                 
-                elif st.session_state.get('uploading_photo_for_med_id') == med['id']:
-                    st.subheader(f"Change Photo for: {med['name']}")
-                    uploaded_file = st.file_uploader("Upload a new photo", type=["png", "jpg", "jpeg"], key=f"uploader_{med['id']}")
-                    if uploaded_file:
-                        with st.spinner("Uploading..."):
-                            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                            upload_response = requests.put(f"{API_BASE_URL}/medications/{med['id']}/photo", headers=api._get_headers(), files=files)
-                        if upload_response and upload_response.status_code == 200:
-                            st.success("Photo updated!"); del st.session_state['uploading_photo_for_med_id']; st.rerun()
-                        else:
-                            st.error("Failed to upload photo.")
-                    if st.button("Cancel", key=f"cancel_upload_{med['id']}", use_container_width=True, type="secondary"):
-                        del st.session_state['uploading_photo_for_med_id']; st.rerun()
-
+                if st.session_state.edit_medication:
+                    success, result = update_medication(st.session_state.edit_medication['id'], medication_data)
                 else:
-                    st.subheader(med['name'])
-                    st.write(f"**Dosage:** {med['dosage']} at **{datetime.strptime(med['timing'], '%H:%M:%S').strftime('%I:%M %p')}**")
-                    btn_cols = st.columns(4)
-                    with btn_cols[0]:
-                        if st.button("Edit Details", key=f"edit_med_{med['id']}", use_container_width=True):
-                            st.session_state.editing_med_id = med['id']; st.rerun()
-                    with btn_cols[1]:
-                        if st.button("Change Photo", key=f"photo_med_{med['id']}", use_container_width=True):
-                            st.session_state.uploading_photo_for_med_id = med['id']; st.rerun()
-                    with btn_cols[2]:
-                        if st.button("To History", key=f"deact_med_{med['id']}", use_container_width=True, type="secondary"):
-                            with st.spinner("Moving..."):
-                                update_response = api.put(f"/medications/{med['id']}", json={"is_active": False})
-                            if update_response and update_response.status_code == 200:
-                                st.toast(f"'{med['name']}' moved to history."); st.rerun()
-                            else:
-                                st.error("Could not update medication status.")
-                    with btn_cols[3]:
-                        if st.button("Delete", key=f"del_med_{med['id']}", use_container_width=True, type="secondary", help="This will permanently delete the medication."):
-                            with st.spinner("Deleting..."):
-                                delete_response = api.delete(f"/medications/{med['id']}")
-                            if delete_response and delete_response.status_code == 204:
-                                st.toast("Medication deleted."); st.rerun()
-                            else:
-                                st.error("Failed to delete medication.")
+                    success, result = create_medication(medication_data)
+                
+                if success:
+                    # Upload photo if provided
+                    if photo_file:
+                        if st.session_state.edit_medication:
+                            upload_success = upload_medication_photo(st.session_state.edit_medication['id'], photo_file)
+                        else:
+                            # For new medication, we need to get the ID from the created medication
+                            upload_success = upload_medication_photo(result['id'], photo_file)
+                    
+                    st.success("Medication saved successfully!")
+                    st.session_state.show_form = False
+                    st.session_state.edit_medication = None
+                    st.rerun()
+                else:
+                    st.error(f"Error saving medication: {result}")
+    
+    if st.button("← Back to medications"):
+        st.session_state.show_form = False
+        st.session_state.edit_medication = None
+        st.rerun()
 
-    # --- INACTIVE MEDICATIONS (HISTORY) ---
-    st.divider()
-    st.subheader("Medication History (Inactive)")
-    if not inactive_meds:
-        st.info("Your medication history is empty.")
-
-    for med in inactive_meds:
-        with st.container(border=True):
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                st.write(f"**{med['name']}** - {med['dosage']} (Taken at {datetime.strptime(med['timing'], '%H:%M:%S').strftime('%I:%M %p')})")
-            with c2:
-                if st.button("Move to Active", key=f"act_med_{med['id']}", use_container_width=True):
-                    with st.spinner("Moving..."):
-                        update_response = api.put(f"/medications/{med['id']}", json={"is_active": True})
-                    if update_response and update_response.status_code == 200:
-                        st.toast(f"'{med['name']}' is now active again."); st.rerun()
-                    else:
-                        st.error("Could not update medication status.")
 else:
-    st.error("Could not load your medication data from the server.")
+    # Action buttons
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        st.info("💡 Add your medications to get reminders and track your intake")
+    
+    with col3:
+        if st.button("➕ Add New Medication", use_container_width=True):
+            st.session_state.show_form = True
+            st.session_state.edit_medication = None
+            st.rerun()
+
+    # Medications Grid
+    if medications:
+        st.markdown(f"### 📋 Your Medications ({len(medications)})")
+        
+        # Filter buttons
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            show_all = st.button("All", use_container_width=True)
+        with col2:
+            show_active = st.button("Active", use_container_width=True)
+        with col3:
+            show_inactive = st.button("Inactive", use_container_width=True)
+        
+        # Filter medications based on selection
+        filtered_medications = medications
+        if show_active:
+            filtered_medications = [m for m in medications if m.get('is_active', True)]
+        elif show_inactive:
+            filtered_medications = [m for m in medications if not m.get('is_active', True)]
+        
+        if not filtered_medications:
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-state-icon">💊</div>
+                <h3>No medications found</h3>
+                <p>Try changing your filters or add new medications</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Display medications in a grid
+            st.markdown('<div class="medication-grid">', unsafe_allow_html=True)
+            
+            for med in filtered_medications:
+                # Parse time
+                med_time = datetime.strptime(med['timing'], "%H:%M:%S").time() if isinstance(med['timing'], str) else med['timing']
+                time_format = st.session_state.get('time_format', '12h')
+                time_str = med_time.strftime("%I:%M %p") if time_format == '12h' else med_time.strftime("%H:%M")
+                
+                # Check if taken today
+                is_taken = med['id'] in taken_meds
+                
+                # Create medication card
+                card_html = f"""
+                <div class="medication-card">
+                    <div class="medication-header">
+                        <h3 class="medication-name">{med['name']}</h3>
+                        <span class="medication-dosage">{med['dosage']}</span>
+                    </div>
+                """
+                
+                # Add image if available
+                if med.get('photo_url'):
+                    try:
+                        response = requests.get(med['photo_url'])
+                        img = Image.open(io.BytesIO(response.content))
+                        buffered = io.BytesIO()
+                        img.save(buffered, format="JPEG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
+                        card_html += f'<img src="data:image/jpeg;base64,{img_str}" class="medication-image">'
+                    except:
+                        pass
+                
+                card_html += f"""
+                    <div class="medication-time">⏰ {time_str}</div>
+                    <div class="medication-status {'status-active' if med.get('is_active', True) else 'status-inactive'}">
+                        {'Active' if med.get('is_active', True) else 'Inactive'}
+                    </div>
+                    {"<div class='medication-status status-active'>✅ Taken today</div>" if is_taken else ""}
+                </div>
+                """
+                
+                st.markdown(card_html, unsafe_allow_html=True)
+                
+                # Action buttons for each medication
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if not is_taken and med.get('is_active', True):
+                        if st.button("✅ Mark Taken", key=f"take_{med['id']}"):
+                            if log_medication_taken(med['id']):
+                                st.success(f"Marked {med['name']} as taken")
+                                st.rerun()
+                with col2:
+                    if st.button("✏️ Edit", key=f"edit_{med['id']}"):
+                        st.session_state.edit_medication = med
+                        st.session_state.show_form = True
+                        st.rerun()
+                with col3:
+                    if st.button("🗑️ Delete", key=f"delete_{med['id']}"):
+                        if delete_medication(med['id']):
+                            st.success("Medication deleted successfully")
+                            st.rerun()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    else:
+        # Empty state
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-state-icon">💊</div>
+            <h3>No medications yet</h3>
+            <p>Add your first medication to get started with tracking</p>
+            <p>Click the "Add New Medication" button to begin</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Statistics section
+if medications:
+    st.markdown("---")
+    st.markdown("### 📊 Medication Statistics")
+    
+    active_meds = [m for m in medications if m.get('is_active', True)]
+    inactive_meds = [m for m in medications if not m.get('is_active', True)]
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Medications", len(medications))
+    with col2:
+        st.metric("Active Medications", len(active_meds))
+    with col3:
+        st.metric("Inactive Medications", len(inactive_meds))
+    with col4:
+        st.metric("Taken Today", len(taken_meds))
+
+# Footer
+st.markdown("---")
+st.markdown("<div style='text-align: center; color: #666;'>Health Companion - Senior Citizen Care App</div>", unsafe_allow_html=True)
