@@ -28,12 +28,18 @@ app = FastAPI(
     version="1.0.0",
 )
 
-
- 
+# --- CORS Middleware Configuration ---
+# YEH NAYA CODE: CORS ke liye allowed origins define karein
+origins = [
+    "http://localhost:8501",
+    "http://127.0.0.1:8501",
+    "https://health-companion-backend-44ug.onrender.com",
+    "https://health-companion-app.onrender.com"
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Yahan naya `origins` variable use ho raha hai
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
