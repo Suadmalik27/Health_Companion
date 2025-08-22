@@ -4,9 +4,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 import time
-from PIL import Image
-import io
-import base64
+from config import get_api_base_url, make_api_request
 
 # Page configuration
 st.set_page_config(
@@ -15,6 +13,9 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# Get API base URL
+API_BASE_URL = get_api_base_url()
 
 # Custom CSS for styling
 def local_css():
@@ -102,9 +103,6 @@ def local_css():
 
 local_css()
 
-# API base URL
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"  # Update this if your backend is hosted elsewhere
-
 def login_user(email, password):
     """Authenticate user with the backend API"""
     try:
@@ -119,13 +117,10 @@ def login_user(email, password):
         }
         
         # Make the request to the login endpoint
-        response = requests.post(
-            f"{API_BASE_URL}/users/token",
-            data=form_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
+        response = make_api_request("POST", "/users/token", data=form_data, 
+                                  headers={"Content-Type": "application/x-www-form-urlencoded"})
         
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             # Successful login
             token_data = response.json()
             # Store the token in session state
@@ -137,8 +132,6 @@ def login_user(email, password):
             # Failed login
             return False, "Invalid email or password"
             
-    except requests.exceptions.ConnectionError:
-        return False, "Cannot connect to the server. Please try again later."
     except Exception as e:
         return False, f"An error occurred: {str(e)}"
 
@@ -151,19 +144,14 @@ def register_user(full_name, email, password):
             "password": password
         }
         
-        response = requests.post(
-            f"{API_BASE_URL}/users/register",
-            json=user_data
-        )
+        response = make_api_request("POST", "/users/register", json=user_data)
         
-        if response.status_code == 201:
+        if response and response.status_code == 201:
             return True, "Registration successful! Please log in."
         else:
-            error_detail = response.json().get("detail", "Registration failed")
+            error_detail = response.json().get("detail", "Registration failed") if response else "Registration failed"
             return False, error_detail
             
-    except requests.exceptions.ConnectionError:
-        return False, "Cannot connect to the server. Please try again later."
     except Exception as e:
         return False, f"An error occurred: {str(e)}"
 
@@ -252,7 +240,7 @@ with col2:
             st.rerun()
             
         if st.button("Forgot Password?"):
-            st.info("Password reset functionality will be implemented soon")
+            st.switch_page("pages/Reset_Password.py")
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)  # Close login-container
