@@ -1,4 +1,4 @@
-# frontend/pages/Dashboard.py
+# frontend/pages/Dashboard.py (Fixed Version)
 
 import streamlit as st
 import requests
@@ -7,6 +7,7 @@ import pytz
 from PIL import Image
 import io
 import base64
+import os
 
 # Page configuration
 st.set_page_config(
@@ -15,6 +16,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Get API URL from secrets or use default
+API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
 
 # Custom CSS for styling
 def local_css():
@@ -105,13 +109,21 @@ def local_css():
         object-fit: cover;
         border: 3px solid white;
     }
+    .profile-placeholder {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        border: 3px solid white;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 local_css()
-
-# API base URL
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 def get_auth_headers():
     """Get authorization headers with access token"""
@@ -154,7 +166,7 @@ def fetch_appointments():
         return []
     
     try:
-        today = date.today()
+        today = date.today().isoformat()
         response = requests.get(
             f"{API_BASE_URL}/appointments/?start_date={today}&end_date={today}", 
             headers=headers
@@ -197,7 +209,7 @@ def get_medication_log():
         return []
     
     try:
-        today = date.today()
+        today = date.today().isoformat()
         response = requests.get(
             f"{API_BASE_URL}/medications/log/{today}", 
             headers=headers
@@ -276,16 +288,27 @@ with col1:
     st.markdown(f'<div class="date-display">{date_str}</div>', unsafe_allow_html=True)
 
 with col3:
+    # Profile picture handling - FIXED
     if user_data and user_data.get('profile_picture_url'):
         try:
             # Display profile picture
-            response = requests.get(user_data['profile_picture_url'])
-            img = Image.open(io.BytesIO(response.content))
-            st.image(img, use_column_width=False, width=80, output_format='auto')
-        except:
-            st.image("👤", width=80)
+            photo_url = user_data['profile_picture_url']
+            if photo_url.startswith('/'):
+                photo_url = f"{API_BASE_URL}{photo_url}"
+            
+            response = requests.get(photo_url)
+            if response.status_code == 200:
+                img = Image.open(io.BytesIO(response.content))
+                st.image(img, use_column_width=False, width=80, output_format='auto')
+            else:
+                # Show placeholder if image can't be loaded
+                st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
+        except Exception as e:
+            # Show placeholder if there's any error
+            st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
     else:
-        st.image("👤", width=80)
+        # Show placeholder if no profile picture
+        st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
     
     if st.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
@@ -321,7 +344,17 @@ with col1:
         taken_meds = set(medication_log)
         
         for med in active_meds:
-            med_time = datetime.strptime(med['timing'], "%H:%M:%S").time() if isinstance(med['timing'], str) else med['timing']
+            # Handle different time formats from API
+            if isinstance(med['timing'], str):
+                if 'T' in med['timing']:
+                    # ISO format with date and time
+                    med_time = datetime.fromisoformat(med['timing'].replace('Z', '+00:00')).time()
+                else:
+                    # Just time string
+                    med_time = datetime.strptime(med['timing'], "%H:%M:%S").time()
+            else:
+                med_time = med['timing']
+                
             is_taken = med['id'] in taken_meds
             is_upcoming = datetime.now().time() < med_time
             
@@ -357,7 +390,13 @@ with col1:
     
     if today_appointments:
         for appointment in today_appointments:
-            appt_time = datetime.fromisoformat(appointment['appointment_datetime'].replace('Z', '+00:00'))
+            # Parse appointment datetime
+            appt_datetime = appointment['appointment_datetime']
+            if 'T' in appt_datetime:
+                appt_time = datetime.fromisoformat(appt_datetime.replace('Z', '+00:00'))
+            else:
+                appt_time = datetime.strptime(appt_datetime, "%Y-%m-%dT%H:%M:%S")
+                
             formatted_time = appt_time.strftime('%I:%M %p') if time_format == '12h' else appt_time.strftime('%H:%M')
             
             st.markdown(f"""
@@ -394,7 +433,7 @@ with col2:
             <i>💡</i>
             <p>No health tips available</p>
         </div>
-        """, unsafe_allow_html=True)
+        ""', unsafe_allow_html=True)
     
     # Quick Stats
     st.markdown("### 📊 Quick Stats")
