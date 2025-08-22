@@ -8,10 +8,17 @@ import os
 # --- CONFIGURATION & PAGE CONFIG ---
 st.set_page_config(page_title="Health Companion", layout="wide", initial_sidebar_state="collapsed")
 
-if "API_BASE_URL" in st.secrets:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-else:
-    API_BASE_URL = "http://127.0.0.1:8000"
+# === YEH SABSE ZAROORI BADLAV HAI ===
+# Purane st.secrets wale code ko is nayi line se badal diya gaya hai.
+# Yeh pehle Render ka Environment Variable dhoondhega.
+# Agar woh nahi mila (local computer par), tabhi default URL use karega.
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
+
+# === DEBUGGING KE LIYE NAYI LINE ===
+# Yeh line aapke live app par ek message dikhayegi jisse pata chalega ki
+# app kaun sa backend URL istemal karne ki koshish kar raha hai.
+st.warning(f"DEBUG MODE: App is trying to connect to API at: {API_BASE_URL}")
+# ==================================
 
 # --- API CLIENT CLASS ---
 class ApiClient:
@@ -22,8 +29,9 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
-        except requests.exceptions.ConnectionError:
+            # Request timeout (5 seconds) add kiya gaya hai
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=5, **kwargs)
+        except requests.exceptions.RequestException: # Catching all request exceptions
             st.error("Connection Error: Could not connect to the backend server."); return None
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
     def post(self, endpoint, data=None, json=None): return self._make_request("POST", endpoint, data=data, json=json)
@@ -97,11 +105,12 @@ def create_header():
         </div>
     """
     header_placeholder = st.empty()
-    while True:
-        current_time = time.strftime("%I:%M:%S %p")
-        current_date = time.strftime("%A, %B %d, %Y")
-        header_placeholder.markdown(header_html.format(time=current_time, date=current_date), unsafe_allow_html=True)
-        time.sleep(1)
+    # Clock loop ko behtar banaya gaya hai taaki woh poore app ko block na kare
+    # Note: Streamlit mein 'while True' loop app ko hang kar sakta hai.
+    # Iska behtar tareeka page ko periodically rerun karna hota hai.
+    current_time = time.strftime("%I:%M:%S %p")
+    current_date = time.strftime("%A, %B %d, %Y")
+    header_placeholder.markdown(header_html.format(time=current_time, date=current_date), unsafe_allow_html=True)
 
 
 # --- AUTHENTICATION PAGE FUNCTION ---
@@ -109,31 +118,22 @@ def show_login_register_page():
     st.markdown("""
         <style>
             /* Hide the sidebar on the login page */
-            section[data-testid="stSidebar"] {
-                display: none;
-            }
+            section[data-testid="stSidebar"] { display: none; }
             /* Use Flexbox to vertically center the login form */
             .st-emotion-cache-1y4p8pa {
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
+                display: flex; flex-direction: column;
+                justify-content: center; align-items: center;
                 height: 100vh;
             }
         </style>
     """, unsafe_allow_html=True)
     
     with st.container():
-        c1, c2, c3 = st.columns([1, 1.5, 1])
+        _, c2, _ = st.columns([1, 1.5, 1])
         with c2:
             st.markdown('<div class="login-container" style="box-shadow: 0 8px 16px rgba(0,0,0,0.1); padding: 2rem 3rem; border-radius: 15px;">', unsafe_allow_html=True)
             st.markdown(
-                """
-                <div style="text-align: center;">
-                    <h1 style="color: #0055a3; font-weight: 700;">🩺 Welcome!</h1>
-                    <p style="color: #555; font-size: 1.2rem;">Your Health Companion</p>
-                </div>
-                """,
+                """<div style="text-align: center;"><h1 style="color: #0055a3; font-weight: 700;">🩺 Welcome!</h1><p style="color: #555; font-size: 1.2rem;">Your Health Companion</p></div>""",
                 unsafe_allow_html=True
             )
             st.write("")
@@ -164,25 +164,29 @@ def show_login_register_page():
                         if response and response.status_code == 201:
                             st.session_state['just_registered'] = True; st.rerun()
                         else:
-                            error = response.json().get('detail', 'Email may already exist.') if response else "Server is down."
-                            st.error(f"Registration Failed: {error}")
+                            error_detail = "An unknown error occurred."
+                            if response is not None:
+                                try: error_detail = response.json().get('detail', 'Email may already exist.')
+                                except: pass
+                            else: error_detail = "Server is down."
+                            st.error(f"Registration Failed: {error_detail}")
             
             st.write("---")
             if st.session_state.get("show_forgot_password", False):
                 st.subheader("Reset Your Password")
-                st.write("Enter your email, and we'll send you a reset link.")
-                email_reset = st.text_input("Email Address", key="reset_email")
-                c1_reset, c2_reset = st.columns(2)
-                with c1_reset:
-                    if st.button("Send Reset Link", use_container_width=True, type="primary"):
-                        with st.spinner("Sending..."):
-                            response = api.post("/users/forgot-password", json={"email": email_reset})
-                        if response and response.status_code == 200:
-                            st.success("Reset link sent! Please check your email."); st.session_state.show_forgot_password = False; st.rerun()
-                        else: st.error("Something went wrong.")
-                with c2_reset:
-                    if st.button("Cancel", use_container_width=True):
-                        st.session_state.show_forgot_password = False; st.rerun()
+                with st.form("reset_form"):
+                    email_reset = st.text_input("Email Address", key="reset_email")
+                    c1_reset, c2_reset = st.columns(2)
+                    with c1_reset:
+                        if st.form_submit_button("Send Reset Link", use_container_width=True, type="primary"):
+                            with st.spinner("Sending..."):
+                                response = api.post("/users/forgot-password", json={"email": email_reset})
+                            if response and response.status_code == 200:
+                                st.success("Reset link sent! Please check your email."); st.session_state.show_forgot_password = False; st.rerun()
+                            else: st.error("Something went wrong.")
+                    with c2_reset:
+                        if st.form_submit_button("Cancel", use_container_width=True):
+                            st.session_state.show_forgot_password = False; st.rerun()
             else:
                  if st.button("Forgot Password?", type="secondary", use_container_width=True):
                     st.session_state.show_forgot_password = True; st.rerun()
@@ -191,22 +195,18 @@ def show_login_register_page():
 
 # --- MAIN APPLICATION CONTROLLER ---
 def main():
-    """The main gatekeeper of the application."""
     apply_global_styles()
 
     if "token" not in st.session_state:
-        if "show_forgot_password" not in st.session_state:
-            st.session_state.show_forgot_password = False
+        if "show_forgot_password" not in st.session_state: st.session_state.show_forgot_password = False
         show_login_register_page()
     else:
-        # --- LOGGED-IN VIEW ---
         if 'theme' not in st.session_state:
             with st.spinner("Loading settings..."):
                 response = api.get("/users/me")
             if response and response.status_code == 200:
                 st.session_state['theme'] = response.json().get('theme', 'light')
-            else:
-                st.session_state['theme'] = 'light'
+            else: st.session_state['theme'] = 'light'
         apply_themed_styles()
 
         st.sidebar.title("Navigation")
