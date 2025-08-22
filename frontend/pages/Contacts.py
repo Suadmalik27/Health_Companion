@@ -1,40 +1,30 @@
-# frontend/pages/4_Contacts.py (Fully Corrected and Robust Version)
+# frontend/pages/4_Contacts.py
 
 import streamlit as st
 import requests
 
-# --- CONFIGURATION (UPDATED SECTION) ---
-# This smart logic checks for secrets for online deployment,
-# and falls back to a local URL for local development.
-if "API_BASE_URL" in st.secrets:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-else:
-    API_BASE_URL = "http://127.0.0.1:8000"
+# --- CONFIGURATION ---
+# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
-
-# --- API CLIENT CLASS (UPDATED AND ROBUST) ---
-# This class is now corrected to properly handle the auth token.
+# --- API CLIENT CLASS (Robust Version) ---
 class ApiClient:
     def __init__(self, base_url):
         self.base_url = base_url
-        self.token = st.session_state.get("token", None)
 
     def _get_headers(self):
-        """
-        CORRECTED: Re-fetches the token from session_state before EVERY request.
-        This solves the '401 Unauthorized' error.
-        """
-        self.token = st.session_state.get("token", None)
-        if self.token:
-            return {"Authorization": f"Bearer {self.token}"}
+        """Re-fetches the token from session_state before EVERY request."""
+        token = st.session_state.get("token", None)
+        if token:
+            return {"Authorization": f"Bearer {token}"}
         return {}
 
     def _make_request(self, method, endpoint, **kwargs):
         """A robust request handler to prevent crashes."""
         try:
-            response = requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
+            response = requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
             return response
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server.")
             return None
 
@@ -72,47 +62,46 @@ st.markdown("""
 
 
 # --- CONTACTS PAGE CONTENT ---
-
-st.header("Emergency Contacts")
+st.header("🆘 Emergency Contacts")
+st.write("Add and manage your emergency contacts. The first contact in the list will be used for the SOS button.")
 
 with st.expander("➕ Add New Contact"):
     with st.form("new_contact_form", clear_on_submit=True):
-        name = st.text_input("Contact's Name")
-        phone_number = st.text_input("Phone Number")
+        name = st.text_input("Contact's Name*")
+        phone_number = st.text_input("Phone Number*")
         relationship_type = st.text_input("Relationship (e.g., 'Son', 'Doctor', 'Neighbor')")
         
-        if st.form_submit_button("Add Contact"):
+        if st.form_submit_button("Add Contact", use_container_width=True):
             if not name or not phone_number:
                 st.warning("Please provide the contact's name and phone number.")
             else:
-                response = api.post("/contacts/", json={
-                    "name": name,
-                    "phone_number": phone_number,
-                    "relationship_type": relationship_type
-                })
+                with st.spinner("Adding..."):
+                    response = api.post("/contacts/", json={
+                        "name": name,
+                        "phone_number": phone_number,
+                        "relationship_type": relationship_type
+                    })
                 if response and response.status_code == 201:
-                    st.success("Contact added successfully!")
-                    st.rerun()
+                    st.success("Contact added successfully!"); st.rerun()
                 elif response and response.status_code == 400:
-                    st.error(response.json().get('detail'))
+                    st.error(response.json().get('detail', 'Invalid data provided.'))
                 else:
                     st.error("Failed to add contact.")
 
 st.subheader("Your Contact List")
 
-response = api.get("/contacts/")
+with st.spinner("Loading contacts..."):
+    response = api.get("/contacts/")
+
 if response and response.status_code == 200:
     contacts = response.json()
     
     if not contacts:
         st.info("You have not added any emergency contacts yet. Use the form above to get started.")
 
-    col1, col2 = st.columns(2)
-    
+    cols = st.columns(2)
     for i, contact in enumerate(contacts):
-        current_col = col1 if i % 2 == 0 else col2
-        
-        with current_col:
+        with cols[i % 2]:
             with st.container(border=True):
                 if st.session_state.get('editing_contact_id') == contact['id']:
                     with st.form(key=f"edit_contact_form_{contact['id']}"):
@@ -123,7 +112,7 @@ if response and response.status_code == 200:
                         
                         c1, c2 = st.columns(2)
                         with c1:
-                            if st.form_submit_button("Save Changes"):
+                            if st.form_submit_button("Save Changes", use_container_width=True):
                                 update_data = {"name": new_name, "phone_number": new_phone, "relationship_type": new_relationship}
                                 put_response = api.put(f"/contacts/{contact['id']}", json=update_data)
                                 if put_response and put_response.status_code == 200:
@@ -133,9 +122,8 @@ if response and response.status_code == 200:
                                 else:
                                     st.error("Failed to update contact.")
                         with c2:
-                            if st.form_submit_button("Cancel", type="secondary"):
-                                del st.session_state['editing_contact_id']
-                                st.rerun()
+                            if st.form_submit_button("Cancel", type="secondary", use_container_width=True):
+                                del st.session_state['editing_contact_id']; st.rerun()
                 else:
                     phone_num = contact['phone_number']
                     st.markdown(f"**{contact['name']}** ({contact.get('relationship_type', 'N/A')})")
@@ -145,14 +133,12 @@ if response and response.status_code == 200:
                     c1, c2 = st.columns(2)
                     with c1:
                         if st.button("Edit", key=f"edit_contact_{contact['id']}", use_container_width=True):
-                            st.session_state['editing_contact_id'] = contact['id']
-                            st.rerun()
+                            st.session_state['editing_contact_id'] = contact['id']; st.rerun()
                     with c2:
                         if st.button("Delete", type="secondary", key=f"del_contact_{contact['id']}", use_container_width=True):
                             delete_response = api.delete(f"/contacts/{contact['id']}")
                             if delete_response and delete_response.status_code == 204:
-                                st.toast("Contact deleted.")
-                                st.rerun()
+                                st.toast("Contact deleted."); st.rerun()
                             else:
                                 st.error("Failed to delete contact.")
 elif response and response.status_code == 401:
