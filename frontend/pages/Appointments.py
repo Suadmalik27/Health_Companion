@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # Get API URL from secrets or use default
-API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+API_BASE_URL = st.secrets.get("https://health-companion-backend-44ug.onrender.com")
 
 # Custom CSS for styling
 def local_css():
