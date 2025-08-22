@@ -1,4 +1,4 @@
-# frontend/streamlit_app.py (Final Polished Version with Centered Login & Hidden Sidebar)
+# frontend/streamlit_app.py (Fixed with proper sidebar navigation)
 
 import streamlit as st
 import requests
@@ -6,7 +6,7 @@ import time
 import os
 
 # --- CONFIGURATION & PAGE CONFIG ---
-st.set_page_config(page_title="Health Companion", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Health Companion", layout="wide", initial_sidebar_state="expanded")
 
 # === PRODUCTION/LOCAL URL DETECTION ===
 # Check if we're running on Render (production) or locally
@@ -30,7 +30,7 @@ class ApiClient:
     
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            # Request timeout (5 seconds) add kiya gaya hai
+            # Request timeout (10 seconds)
             return requests.request(
                 method, 
                 f"{self.base_url}{endpoint}", 
@@ -56,13 +56,12 @@ class ApiClient:
 
 api = ApiClient(API_BASE_URL)
 
-
 # --- STYLING FUNCTIONS ---
 def apply_global_styles():
     st.markdown("""
         <style>
             /* General Font and Button styles */
-            html, body, [class*="st-"], .st-emotion-cache-1avcm0n {
+            html, body, [class*="st-"] {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
                 font-size: 18px;
             }
@@ -78,7 +77,7 @@ def apply_global_styles():
                 box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             }
             /* Hide sidebar on login page */
-            section[data-testid="stSidebar"] {
+            .login-page section[data-testid="stSidebar"] {
                 display: none;
             }
         </style>
@@ -149,7 +148,6 @@ def apply_themed_styles():
         </style>
     """, unsafe_allow_html=True)
 
-
 # --- HEADER COMPONENT ---
 def create_header():
     theme = st.session_state.get('theme', 'light')
@@ -174,16 +172,14 @@ def create_header():
     """
     st.markdown(header_html, unsafe_allow_html=True)
 
-
 # --- AUTHENTICATION PAGE FUNCTION ---
 def show_login_register_page():
-    apply_global_styles()
-    apply_themed_styles()
+    st.markdown('<div class="login-page">', unsafe_allow_html=True)
     
     # Center the login form
     st.markdown("""
         <style>
-            .main .block-container {
+            .login-page .main .block-container {
                 padding-top: 5rem;
                 display: flex;
                 justify-content: center;
@@ -308,34 +304,45 @@ def show_login_register_page():
                 st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
-
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- MAIN APPLICATION LAYOUT ---
 def main_app_layout():
-    apply_themed_styles()
-    
     # Sidebar navigation
     with st.sidebar:
-        st.title("Navigation")
-        st.markdown(f"Welcome, \n**{st.session_state.get('user_email', 'User')}**!")
+        st.title("🏥 Health Companion")
+        st.markdown(f"Welcome, **{st.session_state.get('user_email', 'User')}**!")
+        st.divider()
         
         # Navigation options
-        page_options = {
-            "Dashboard": "pages/Dashboard.py",
-            "Medications": "pages/Medications.py", 
-            "Appointments": "pages/Appointments.py",
-            "Contacts": "pages/Contacts.py",
-            "Health Tips": "pages/Health_Tips.py",
-            "Profile": "pages/Profile.py"
-        }
+        if st.button("📊 Dashboard", use_container_width=True, key="nav_dashboard"):
+            st.session_state.current_page = "Dashboard"
+            st.rerun()
         
-        for page_name, page_path in page_options.items():
-            if st.button(page_name, use_container_width=True, key=f"nav_{page_name}"):
-                st.switch_page(page_path)
+        if st.button("💊 Medications", use_container_width=True, key="nav_medications"):
+            st.session_state.current_page = "Medications"
+            st.rerun()
+            
+        if st.button("🗓️ Appointments", use_container_width=True, key="nav_appointments"):
+            st.session_state.current_page = "Appointments"
+            st.rerun()
+            
+        if st.button("📞 Contacts", use_container_width=True, key="nav_contacts"):
+            st.session_state.current_page = "Contacts"
+            st.rerun()
+            
+        if st.button("💡 Health Tips", use_container_width=True, key="nav_tips"):
+            st.session_state.current_page = "Health_Tips"
+            st.rerun()
+            
+        if st.button("👤 Profile", use_container_width=True, key="nav_profile"):
+            st.session_state.current_page = "Profile"
+            st.rerun()
         
         st.divider()
         
-        if st.button("Logout", use_container_width=True, type="secondary"):
+        if st.button("🚪 Logout", use_container_width=True, type="secondary"):
             st.session_state.clear()
             st.toast("Logged out successfully.")
             st.rerun()
@@ -345,19 +352,52 @@ def main_app_layout():
     if response and response.status_code == 200 and response.json():
         emergency_number = response.json()[0]['phone_number']
         st.markdown(
-            f'<a href="tel:{emergency_number}" class="emergency-bar">🚨 EMERGENCY SOS 🚨</a>', 
+            f'<a href="tel:{emergency_number}" class="emergency-bar">🚨 EMERGENCY SOS - CALL {emergency_number} 🚨</a>', 
             unsafe_allow_html=True
         )
     else:
         st.markdown(
-            '<a href="/Contacts" class="emergency-bar">⚠️ ADD SOS CONTACT ⚠️</a>', 
+            '<a href="#" class="emergency-bar">⚠️ ADD EMERGENCY CONTACTS IN CONTACTS PAGE ⚠️</a>', 
             unsafe_allow_html=True
         )
     
-    # Main content area
-    create_header()
-    st.info("Please select a page from the sidebar to manage your health information.", icon="👈")
-
+    # Main content area - Show current page or dashboard
+    current_page = st.session_state.get("current_page", "Dashboard")
+    
+    if current_page == "Dashboard":
+        create_header()
+        st.info("""
+        Welcome to your Health Companion Dashboard! Here you can:
+        - View your daily medications and mark them as taken
+        - See today's appointments
+        - Get daily health tips
+        - Manage your health information
+        
+        Use the sidebar to navigate to different sections of the app.
+        """, icon="👈")
+        
+        # Show quick stats
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Medications Today", "0", help="Number of medications scheduled for today")
+        
+        with col2:
+            st.metric("Appointments Today", "0", help="Number of appointments scheduled for today")
+        
+        with col3:
+            st.metric("Health Tips", "12", help="Total health tips available")
+    
+    elif current_page == "Medications":
+        st.switch_page("pages/2_Medications.py")
+    elif current_page == "Appointments":
+        st.switch_page("pages/3_Appointments.py")
+    elif current_page == "Contacts":
+        st.switch_page("pages/4_Contacts.py")
+    elif current_page == "Health_Tips":
+        st.switch_page("pages/6_Health_Tips.py")
+    elif current_page == "Profile":
+        st.switch_page("pages/5_Profile.py")
 
 # --- MAIN APPLICATION CONTROLLER ---
 def main():
@@ -372,6 +412,9 @@ def main():
     
     if "user_email" not in st.session_state:
         st.session_state.user_email = None
+        
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Dashboard"
 
     # Show appropriate page based on authentication status
     if not st.session_state.token:
@@ -387,8 +430,8 @@ def main():
             else:
                 st.session_state['theme'] = 'light'
         
+        apply_themed_styles()
         main_app_layout()
-
 
 if __name__ == "__main__":
     main()
