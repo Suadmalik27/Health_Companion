@@ -3,10 +3,14 @@
 import streamlit as st
 import requests
 import time
+import os
 
 # --- CONFIGURATION ---
-# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
+# Use the same logic as main app for API URL
+if 'RENDER' in st.secrets or 'RENDER' in os.environ:
+    API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
+else:
+    API_BASE_URL = "http://localhost:8000"
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Reset Password", layout="centered", initial_sidebar_state="collapsed")
@@ -55,6 +59,8 @@ with st.form("reset_password_form"):
                         st.success("Your password has been reset successfully!")
                         st.info("You can now close this page and log in with your new password.")
                         st.balloons()
+                        time.sleep(3)
+                        st.switch_page("streamlit_app.py")
                     else:
                         error_detail = response.json().get("detail", "An error occurred. The link may have expired.")
                         st.error(error_detail)
