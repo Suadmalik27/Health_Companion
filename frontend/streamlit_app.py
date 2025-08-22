@@ -12,7 +12,7 @@ st.set_page_config(page_title="Health Companion", layout="wide", initial_sidebar
 # Purane st.secrets wale code ko is nayi line se badal diya gaya hai.
 # Yeh pehle Render ka Environment Variable dhoondhega.
 # Agar woh nahi mila (local computer par), tabhi default URL use karega.
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
+API_BASE_URL = os.environ.get("API_BASE_URL")
 
 # === DEBUGGING KE LIYE NAYI LINE ===
 # Yeh line aapke live app par ek message dikhayegi jisse pata chalega ki
