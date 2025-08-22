@@ -1,40 +1,53 @@
-# backend/app/config.py (Updated for Production)
+# frontend/config.py
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import streamlit as st
+import requests
 import os
-from urllib.parse import quote_plus
 
-class Settings(BaseSettings):
-    """
-    Manages application settings by loading them from environment variables.
-    """
-    # Load from .env file
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+def get_api_base_url():
+    """Get the API base URL from secrets, environment variables, or use default"""
+    try:
+        # First try Streamlit secrets
+        return st.secrets["API_BASE_URL"]
+    except:
+        try:
+            # Then try environment variables
+            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+        except:
+            # Fallback to the deployed backend
+            return "https://health-companion-backend-44ug.onrender.com"
 
-    # --- Database Settings ---
-    DATABASE_URL: str
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
 
-    # --- JWT Authentication Settings ---
-    SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-
-    # --- Email Settings for Password Reset ---
-    MAIL_USERNAME: str
-    MAIL_PASSWORD: str
-    MAIL_FROM: str
-    MAIL_PORT: int = 587
-    MAIL_SERVER: str = "smtp.gmail.com"
-
-    # --- Frontend URL for building reset links ---
-    FRONTEND_URL: str = "http://localhost:8501"
-
-    def get_database_url(self):
-        """Handle special characters in database URL"""
-        if '%' in self.DATABASE_URL:
-            return self.DATABASE_URL
-        return self.DATABASE_URL
-
-
-# Create settings instance
-settings = Settings()
+def make_api_request(method, endpoint, **kwargs):
+    """Make an API request with proper error handling"""
+    base_url = get_api_base_url()
+    url = f"{base_url}{endpoint}"
+    headers = get_auth_headers()
+    
+    if headers:
+        if 'headers' in kwargs:
+            kwargs['headers'].update(headers)
+        else:
+            kwargs['headers'] = headers
+    
+    # Add timeout if not specified
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 10
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        return response
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to the server. Please check your internet connection.")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("Request timed out. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
