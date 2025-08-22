@@ -1,110 +1,459 @@
-# /frontend/pages/6_Health_Tips.py
+# frontend/pages/Health_Tips.py
 
 import streamlit as st
-import requests
+from datetime import datetime
+import random
 
-# --- CONFIGURATION & API CLIENT ---
-# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
+# Import the new config system
+from config import get_api_base_url, get_auth_headers, make_api_request
 
-# --- API CLIENT CLASS (Robust Version) ---
-class ApiClient:
-    def __init__(self, base_url):
-        self.base_url = base_url
-    def _get_headers(self):
-        token = st.session_state.get("token", None)
-        if token: return {"Authorization": f"Bearer {token}"}
-        return {}
-    def _make_request(self, method, endpoint, **kwargs):
-        try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
-        except requests.exceptions.RequestException:
-            st.error("Connection Error: Could not connect to the backend server."); return None
-    def post(self, endpoint, json=None): return self._make_request("POST", endpoint, json=json)
-    def get(self, endpoint): return self._make_request("GET", endpoint)
-    def put(self, endpoint, json=None): return self._make_request("PUT", endpoint, json=json)
-    def delete(self, endpoint): return self._make_request("DELETE", endpoint)
+# Page configuration
+st.set_page_config(
+    page_title="Health Tips - Health Companion",
+    page_icon="💡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-api = ApiClient(API_BASE_URL)
+# Get API base URL
+API_BASE_URL = get_api_base_url()
 
-# --- SECURITY CHECK ---
-if 'token' not in st.session_state:
-    st.warning("Please login first to access this page."); st.stop()
+# Custom CSS for styling
+def local_css():
+    st.markdown("""
+    <style>
+    .health-tips-container {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    .tip-card {
+        background: linear-gradient(135deg, #fff9e6 0%, #fff3e0 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #FF9800;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .tip-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+    .tip-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    .tip-category {
+        background: #FF9800;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .tip-content {
+        font-size: 1.1rem;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+    }
+    .tip-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .tip-card:hover .tip-actions {
+        opacity: 1;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #78909c;
+    }
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+    .form-container {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    .category-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    .category-chip {
+        padding: 0.5rem 1rem;
+        border-radius: 25px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid #e0e0e0;
+    }
+    .category-chip:hover {
+        border-color: #FF9800;
+        background: #fff3e0;
+    }
+    .category-chip.selected {
+        background: #FF9800;
+        color: white;
+        border-color: #FF9800;
+    }
+    .stats-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-left: 4px solid #4CAF50;
+    }
+    .stats-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #4CAF50;
+        margin: 0;
+    }
+    .stats-label {
+        color: #666;
+        margin: 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Manage Health Tips", layout="wide")
+local_css()
 
-# --- HEALTH TIPS PAGE CONTENT ---
-st.header("💡 Manage Health Tips")
-st.write("Here you can add, edit, or remove the health tips that appear on the dashboard.")
+def fetch_all_tips():
+    """Fetch all health tips"""
+    response = make_api_request("GET", "/tips/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
-# --- ADD NEW TIP FORM ---
-with st.expander("➕ Add a New Health Tip"):
-    with st.form("new_tip_form", clear_on_submit=True):
-        category = st.text_input("Category", value="General", placeholder="e.g., Diet, Exercise")
-        content = st.text_area("Tip Content*", placeholder="Enter the health tip here...")
+def fetch_random_tip():
+    """Fetch a random health tip"""
+    response = make_api_request("GET", "/tips/random")
+    if response and response.status_code == 200:
+        return response.json()
+    return None
+
+def create_tip(tip_data):
+    """Create a new health tip"""
+    headers = get_auth_headers()
+    if not headers:
+        return False, "Not authenticated"
+    
+    response = make_api_request("POST", "/tips/", json=tip_data, headers=headers)
+    if response and response.status_code == 201:
+        return True, response.json()
+    return False, "Failed to create tip"
+
+def update_tip(tip_id, tip_data):
+    """Update an existing health tip"""
+    headers = get_auth_headers()
+    if not headers:
+        return False, "Not authenticated"
+    
+    response = make_api_request("PUT", f"/tips/{tip_id}", json=tip_data, headers=headers)
+    if response and response.status_code == 200:
+        return True, response.json()
+    return False, "Failed to update tip"
+
+def delete_tip(tip_id):
+    """Delete a health tip"""
+    headers = get_auth_headers()
+    if not headers:
+        return False
+    
+    response = make_api_request("DELETE", f"/tips/{tip_id}", headers=headers)
+    return response and response.status_code == 204
+
+def get_tip_categories(tips):
+    """Get unique categories from tips"""
+    categories = set()
+    for tip in tips:
+        categories.add(tip.get('category', 'General'))
+    return sorted(categories)
+
+# Check if user is logged in
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("Please log in to access health tips")
+    st.stop()
+
+# Initialize session state
+if 'edit_tip' not in st.session_state:
+    st.session_state.edit_tip = None
+if 'show_form' not in st.session_state:
+    st.session_state.show_form = False
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = "All"
+if 'view_mode' not in st.session_state:
+    st.session_state.view_mode = "browse"
+
+# Fetch tips
+tips = fetch_all_tips()
+random_tip = fetch_random_tip()
+categories = get_tip_categories(tips)
+
+# Page header
+st.title("💡 Health Tips & Advice")
+st.markdown("Discover helpful health tips and advice for senior wellness")
+
+# Statistics section
+if tips:
+    st.markdown("### 📊 Tips Overview")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 class="stats-number">{len(tips)}</h3>
+            <p class="stats-label">Total Tips</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        general_tips = len([t for t in tips if t.get('category') == 'General'])
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 class="stats-number">{general_tips}</h3>
+            <p class="stats-label">General Tips</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        unique_categories = len(set(t.get('category', 'General') for t in tips))
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 class="stats-number">{unique_categories}</h3>
+            <p class="stats-label">Categories</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        # Count tips created by current user (if authenticated)
+        user_tips = len(tips)  # For now, all tips are visible to all users
+        st.markdown(f"""
+        <div class="stats-card">
+            <h3 class="stats-number">{user_tips}</h3>
+            <p class="stats-label">Available Tips</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# View mode toggle
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    st.info("💡 Browse health tips or add your own wisdom to help others")
+with col3:
+    if st.button("➕ Add New Tip", use_container_width=True):
+        st.session_state.show_form = True
+        st.session_state.edit_tip = None
+        st.rerun()
+
+# Category filter
+if categories:
+    st.markdown("### 🏷️ Filter by Category")
+    
+    # Create category chips
+    category_cols = st.columns(min(6, len(categories) + 1))
+    
+    with category_cols[0]:
+        if st.button("All Categories", key="cat_all", use_container_width=True):
+            st.session_state.selected_category = "All"
+            st.rerun()
+    
+    for i, category in enumerate(categories, 1):
+        with category_cols[i % len(category_cols)]:
+            is_selected = st.session_state.selected_category == category
+            if st.button(category, key=f"cat_{category}", use_container_width=True,
+                       type="primary" if is_selected else "secondary"):
+                st.session_state.selected_category = category
+                st.rerun()
+
+# Add/Edit Tip Form
+if st.session_state.show_form:
+    st.markdown("### 📝 " + ("Edit Health Tip" if st.session_state.edit_tip else "Add New Health Tip"))
+    
+    with st.form("tip_form"):
+        # Category selection
+        default_category = st.session_state.edit_tip.get('category', 'General') if st.session_state.edit_tip else 'General'
+        category = st.selectbox(
+            "Category",
+            options=categories + ['New Category'] if categories else ['General', 'Diet', 'Exercise', 'Mental Health', 'New Category'],
+            index=0 if default_category not in categories else categories.index(default_category),
+            help="Select a category or choose 'New Category' to create a new one"
+        )
         
-        if st.form_submit_button("Add Tip", use_container_width=True):
-            if not content:
-                st.warning("Please enter the tip content.")
+        if category == 'New Category':
+            new_category = st.text_input("New Category Name", placeholder="Enter new category name")
+            category = new_category if new_category else 'General'
+        
+        # Tip content
+        content = st.text_area(
+            "Health Tip Content",
+            value=st.session_state.edit_tip.get('content', '') if st.session_state.edit_tip else "",
+            placeholder="Share your health wisdom here...",
+            height=150,
+            help="Write clear, helpful health advice"
+        )
+        
+        submitted = st.form_submit_button("💾 Save Health Tip")
+        
+        if submitted:
+            if not content.strip():
+                st.error("Please provide tip content")
             else:
-                with st.spinner("Adding tip..."):
-                    response = api.post("/tips/", json={"category": category, "content": content})
-                if response and response.status_code == 201:
-                    st.success("Health tip added successfully!"); st.rerun()
+                tip_data = {
+                    "content": content.strip(),
+                    "category": category.strip()
+                }
+                
+                if st.session_state.edit_tip:
+                    success, result = update_tip(st.session_state.edit_tip['id'], tip_data)
                 else:
-                    st.error("Failed to add tip.")
+                    success, result = create_tip(tip_data)
+                
+                if success:
+                    st.success("Health tip saved successfully!")
+                    st.session_state.show_form = False
+                    st.session_state.edit_tip = None
+                    st.rerun()
+                else:
+                    st.error(f"Error saving tip: {result}")
+    
+    if st.button("← Back to tips"):
+        st.session_state.show_form = False
+        st.session_state.edit_tip = None
+        st.rerun()
 
-st.divider()
-
-# --- DISPLAY ALL TIPS ---
-st.subheader("Existing Health Tips")
-
-with st.spinner("Loading tips..."):
-    response = api.get("/tips/")
-
-if response and response.status_code == 200:
-    all_tips = response.json()
-    if not all_tips:
-        st.info("No health tips found. Add one using the form above to get started.")
-
-    for tip in all_tips:
-        with st.container(border=True):
-            # Edit-in-place logic
-            if st.session_state.get('editing_tip_id') == tip['id']:
-                with st.form(key=f"edit_tip_form_{tip['id']}"):
-                    st.subheader(f"Editing Tip #{tip['id']}")
-                    new_category = st.text_input("Category", value=tip['category'])
-                    new_content = st.text_area("Content", value=tip['content'])
-                    
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        if st.form_submit_button("Save Changes", use_container_width=True):
-                            with st.spinner("Saving..."):
-                                update_data = {"category": new_category, "content": new_content}
-                                put_response = api.put(f"/tips/{tip['id']}", json=update_data)
-                            if put_response and put_response.status_code == 200:
-                                st.success("Tip updated!"); del st.session_state['editing_tip_id']; st.rerun()
-                            else:
-                                st.error("Failed to update tip.")
-                    with c2:
-                        if st.form_submit_button("Cancel", type="secondary", use_container_width=True):
-                            del st.session_state['editing_tip_id']; st.rerun()
-            else:
-                # Default display view
-                col1, col2, col3 = st.columns([5, 1, 1])
-                with col1:
-                    st.markdown(f"**{tip['category']}**: {tip['content']}")
-                with col2:
-                    if st.button("Edit", key=f"edit_tip_{tip['id']}", use_container_width=True):
-                        st.session_state.editing_tip_id = tip['id']; st.rerun()
-                with col3:
-                    if st.button("Delete", type="secondary", key=f"del_tip_{tip['id']}", use_container_width=True):
-                        with st.spinner("Deleting..."):
-                            delete_response = api.delete(f"/tips/{tip['id']}")
-                        if delete_response and delete_response.status_code == 204:
-                            st.toast("Tip deleted."); st.rerun()
-                        else:
-                            st.error("Failed to delete tip.")
 else:
-    st.error("Could not load health tips from the server.")
+    # Display tips
+    if tips:
+        # Filter tips by selected category
+        filtered_tips = tips
+        if st.session_state.selected_category != "All":
+            filtered_tips = [t for t in tips if t.get('category') == st.session_state.selected_category]
+        
+        if not filtered_tips:
+            st.markdown("""
+            <div class="empty-state">
+                <div class="empty-state-icon">💡</div>
+                <h3>No tips in this category</h3>
+                <p>No health tips found for the selected category</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"### 💡 Health Tips ({len(filtered_tips)})")
+            
+            for tip in filtered_tips:
+                col1, col2 = st.columns([5, 1])
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="tip-card">
+                        <div class="tip-header">
+                            <span class="tip-category">{tip.get('category', 'General')}</span>
+                        </div>
+                        <p class="tip-content">{tip['content']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Edit and delete buttons (only show on hover via CSS)
+                    if st.button("✏️", key=f"edit_{tip['id']}", help="Edit tip"):
+                        st.session_state.edit_tip = tip
+                        st.session_state.show_form = True
+                        st.rerun()
+                    
+                    if st.button("🗑️", key=f"delete_{tip['id']}", help="Delete tip"):
+                        if delete_tip(tip['id']):
+                            st.success("Tip deleted successfully")
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete tip")
+    
+    else:
+        # Empty state
+        st.markdown("""
+        <div class="empty-state">
+            <div class="empty-state-icon">💡</div>
+            <h3>No health tips yet</h3>
+            <p>Be the first to share health wisdom and help others</p>
+            <p>Click the "Add New Tip" button to share your knowledge</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Daily Random Tip Section
+st.markdown("---")
+st.markdown("### 🎲 Today's Random Health Tip")
+
+if random_tip:
+    st.markdown(f"""
+    <div class="tip-card">
+        <div class="tip-header">
+            <span class="tip-category">{random_tip.get('category', 'General')}</span>
+        </div>
+        <p class="tip-content">{random_tip['content']}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if st.button("🔄 Get Another Random Tip"):
+        # Force refresh by clearing cache
+        st.rerun()
+else:
+    st.markdown("""
+    <div class="empty-state">
+        <div class="empty-state-icon">💡</div>
+        <h3>No random tip available</h3>
+        <p>Add some health tips to see random suggestions</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Health Tips Guidelines
+st.markdown("---")
+st.markdown("### 📋 Tips for Writing Good Health Advice")
+
+guideline_col1, guideline_col2, guideline_col3 = st.columns(3)
+
+with guideline_col1:
+    st.info("""
+    **Be Specific**  
+    - Provide clear, actionable advice
+    - Include practical examples
+    - Avoid vague statements
+    - Use simple language
+    """)
+
+with guideline_col2:
+    st.info("""
+    **Stay Positive**  
+    - Focus on benefits and solutions
+    - Use encouraging language
+    - Share success stories
+    - Be supportive and kind
+    """)
+
+with guideline_col3:
+    st.info("""
+    **Category Appropriately**  
+    - Choose relevant categories
+    - Create new categories if needed
+    - Keep similar tips together
+    - Help others find your advice
+    """)
+
+# Footer
+st.markdown("---")
+st.markdown("<div style='text-align: center; color: #666;'>Health Companion - Senior Citizen Care App</div>", unsafe_allow_html=True)
