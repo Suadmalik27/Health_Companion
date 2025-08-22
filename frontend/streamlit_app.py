@@ -3,6 +3,7 @@
 import streamlit as st
 import requests
 import time
+import os
 
 # --- CONFIGURATION & PAGE CONFIG ---
 st.set_page_config(page_title="Health Companion", layout="wide", initial_sidebar_state="collapsed")
