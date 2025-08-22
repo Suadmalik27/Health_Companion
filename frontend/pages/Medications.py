@@ -6,6 +6,7 @@ from datetime import datetime, time
 import io
 from PIL import Image
 import base64
+import os
 
 # Page configuration
 st.set_page_config(
@@ -14,6 +15,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Get API URL from secrets or use default
+API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
 
 # Custom CSS for styling
 def local_css():
@@ -119,9 +123,6 @@ def local_css():
 
 local_css()
 
-# API base URL
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
-
 def get_auth_headers():
     """Get authorization headers with access token"""
     if 'access_token' not in st.session_state:
@@ -147,7 +148,7 @@ def create_medication(medication_data):
     """Create a new medication"""
     headers = get_auth_headers()
     if not headers:
-        return False
+        return False, "Not authenticated"
     
     try:
         response = requests.post(
@@ -165,7 +166,7 @@ def update_medication(medication_id, medication_data):
     """Update an existing medication"""
     headers = get_auth_headers()
     if not headers:
-        return False
+        return False, "Not authenticated"
     
     try:
         response = requests.put(
@@ -221,7 +222,7 @@ def get_medication_log():
     
     try:
         from datetime import date
-        today = date.today()
+        today = date.today().isoformat()
         response = requests.get(
             f"{API_BASE_URL}/medications/log/{today}", 
             headers=headers
@@ -229,7 +230,8 @@ def get_medication_log():
         if response.status_code == 200:
             return response.json()
         return []
-    except:
+    except Exception as e:
+        st.error(f"Error fetching medication log: {str(e)}")
         return []
 
 def log_medication_taken(medication_id):
@@ -244,7 +246,8 @@ def log_medication_taken(medication_id):
             headers=headers
         )
         return response.status_code == 201
-    except:
+    except Exception as e:
+        st.error(f"Error logging medication: {str(e)}")
         return False
 
 # Check if user is logged in
@@ -276,26 +279,44 @@ if st.session_state.show_form:
         
         with col1:
             name = st.text_input("Medication Name", 
-                               value=st.session_state.edit_medication['name'] if st.session_state.edit_medical else "",
+                               value=st.session_state.edit_medication.get('name', '') if st.session_state.edit_medication else "",
                                placeholder="e.g., Metformin, Lisinopril")
             dosage = st.text_input("Dosage",
-                                 value=st.session_state.edit_medication['dosage'] if st.session_state.edit_medical else "",
+                                 value=st.session_state.edit_medication.get('dosage', '') if st.session_state.edit_medication else "",
                                  placeholder="e.g., 500mg, 10mg once daily")
         
         with col2:
-            timing = st.time_input("Time to take",
-                                 value=datetime.strptime(st.session_state.edit_medication['timing'], "%H:%M:%S").time() if st.session_state.edit_medical else time(9, 0))
-            is_active = st.checkbox("Active", value=st.session_state.edit_medication.get('is_active', True) if st.session_state.edit_medical else True)
+            # Handle time input
+            default_time = time(9, 0)
+            if st.session_state.edit_medication and st.session_state.edit_medication.get('timing'):
+                try:
+                    if isinstance(st.session_state.edit_medication['timing'], str):
+                        if 'T' in st.session_state.edit_medication['timing']:
+                            default_time = datetime.fromisoformat(
+                                st.session_state.edit_medication['timing'].replace('Z', '+00:00')
+                            ).time()
+                        else:
+                            default_time = datetime.strptime(
+                                st.session_state.edit_medication['timing'], "%H:%M:%S"
+                            ).time()
+                except:
+                    pass
+            
+            timing = st.time_input("Time to take", value=default_time)
+            is_active = st.checkbox("Active", value=st.session_state.edit_medication.get('is_active', True) if st.session_state.edit_medication else True)
         
         # Photo upload
-        if st.session_state.edit_medication:
-            if st.session_state.edit_medication.get('photo_url'):
-                try:
-                    response = requests.get(st.session_state.edit_medication['photo_url'])
+        if st.session_state.edit_medication and st.session_state.edit_medication.get('photo_url'):
+            try:
+                photo_url = st.session_state.edit_medication['photo_url']
+                if photo_url.startswith('/'):
+                    photo_url = f"{API_BASE_URL}{photo_url}"
+                response = requests.get(photo_url)
+                if response.status_code == 200:
                     img = Image.open(io.BytesIO(response.content))
                     st.image(img, caption="Current Photo", width=200)
-                except:
-                    st.write("Could not load current photo")
+            except Exception as e:
+                st.write("Could not load current photo")
         
         photo_file = st.file_uploader("Upload medication photo (optional)", type=['jpg', 'jpeg', 'png'])
         
@@ -320,11 +341,10 @@ if st.session_state.show_form:
                 if success:
                     # Upload photo if provided
                     if photo_file:
-                        if st.session_state.edit_medication:
-                            upload_success = upload_medication_photo(st.session_state.edit_medication['id'], photo_file)
-                        else:
-                            # For new medication, we need to get the ID from the created medication
-                            upload_success = upload_medication_photo(result['id'], photo_file)
+                        medication_id = st.session_state.edit_medication['id'] if st.session_state.edit_medication else result['id']
+                        upload_success = upload_medication_photo(medication_id, photo_file)
+                        if upload_success:
+                            st.success("Photo uploaded successfully!")
                     
                     st.success("Medication saved successfully!")
                     st.session_state.show_form = False
@@ -358,11 +378,11 @@ else:
         # Filter buttons
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            show_all = st.button("All", use_container_width=True)
+            show_all = st.button("All", use_container_width=True, key="show_all")
         with col2:
-            show_active = st.button("Active", use_container_width=True)
+            show_active = st.button("Active", use_container_width=True, key="show_active")
         with col3:
-            show_inactive = st.button("Inactive", use_container_width=True)
+            show_inactive = st.button("Inactive", use_container_width=True, key="show_inactive")
         
         # Filter medications based on selection
         filtered_medications = medications
@@ -385,7 +405,15 @@ else:
             
             for med in filtered_medications:
                 # Parse time
-                med_time = datetime.strptime(med['timing'], "%H:%M:%S").time() if isinstance(med['timing'], str) else med['timing']
+                med_time = None
+                if isinstance(med['timing'], str):
+                    if 'T' in med['timing']:
+                        med_time = datetime.fromisoformat(med['timing'].replace('Z', '+00:00')).time()
+                    else:
+                        med_time = datetime.strptime(med['timing'], "%H:%M:%S").time()
+                else:
+                    med_time = med['timing']
+                
                 time_format = st.session_state.get('time_format', '12h')
                 time_str = med_time.strftime("%I:%M %p") if time_format == '12h' else med_time.strftime("%H:%M")
                 
@@ -404,13 +432,18 @@ else:
                 # Add image if available
                 if med.get('photo_url'):
                     try:
-                        response = requests.get(med['photo_url'])
-                        img = Image.open(io.BytesIO(response.content))
-                        buffered = io.BytesIO()
-                        img.save(buffered, format="JPEG")
-                        img_str = base64.b64encode(buffered.getvalue()).decode()
-                        card_html += f'<img src="data:image/jpeg;base64,{img_str}" class="medication-image">'
-                    except:
+                        photo_url = med['photo_url']
+                        if photo_url.startswith('/'):
+                            photo_url = f"{API_BASE_URL}{photo_url}"
+                        response = requests.get(photo_url)
+                        if response.status_code == 200:
+                            img = Image.open(io.BytesIO(response.content))
+                            buffered = io.BytesIO()
+                            img.save(buffered, format="JPEG")
+                            img_str = base64.b64encode(buffered.getvalue()).decode()
+                            card_html += f'<img src="data:image/jpeg;base64,{img_str}" class="medication-image">'
+                    except Exception as e:
+                        # Silently fail if image can't be loaded
                         pass
                 
                 card_html += f"""
