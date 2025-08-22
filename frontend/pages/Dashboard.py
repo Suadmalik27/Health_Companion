@@ -18,7 +18,10 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self.get_headers(), timeout=10, **kwargs)
+            # --- YEH BADLAV HUA HAI ---
+            # Yahan self.get_headers ko theek karke self._get_headers kar diya gaya hai.
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
+            # --- BADLAV KHATAM ---
         except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
@@ -50,21 +53,17 @@ def load_dashboard_data(_api_client: ApiClient):
     return data
 
 # --- CALLBACK FUNCTION FOR BUTTONS ---
-# --- YEH BADLAV HUA HAI (1) ---
-# st.rerun() ko yahan se hata diya gaya hai kyunki on_click ise automatically karta hai.
 def handle_med_taken(med_id):
     with st.spinner("Logging..."):
         response = api.post(f"/medications/{med_id}/log")
     if response and response.status_code in [201, 200]:
         st.toast(f"Great job!", icon="✅")
-        # Ensure 'taken_med_ids' exists and is a list before appending
         if 'taken_med_ids' not in st.session_state or not isinstance(st.session_state.taken_med_ids, list):
             st.session_state.taken_med_ids = []
         st.session_state.taken_med_ids.append(med_id)
-        st.cache_data.clear() # Clear cache to refetch data
+        st.cache_data.clear()
     else:
         st.error("Failed to log medication.")
-# --- BADLAV KHATAM ---
 
 # --- MAIN DASHBOARD UI ---
 st.set_page_config(page_title="Dashboard", layout="wide")
@@ -78,17 +77,14 @@ with st.spinner("Loading your dashboard..."):
     all_appointments = dashboard_data.get("appointments")
     all_medications = dashboard_data.get("medications")
     health_tip = dashboard_data.get("tip")
-    taken_med_ids_from_api = dashboard_data.get("med_log") # None ho sakta hai
+    taken_med_ids_from_api = dashboard_data.get("med_log")
 
 if all_medications is None:
     st.error("Could not load medication data. Please try refreshing."); st.stop()
 
-# --- YEH BADLAV HUA HAI (2) ---
-# Is line ko theek kar diya gaya hai taaki yeh seedha IDs ki list ko handle kar sake.
 session_taken = st.session_state.get('taken_med_ids', []) or []
-api_taken = taken_med_ids_from_api or [] # Ab yeh seedha list [1, 5] ko handle karega
+api_taken = taken_med_ids_from_api or []
 st.session_state.taken_med_ids = list(set(session_taken + api_taken))
-# --- BADLAV KHATAM ---
 
 time_format_pref = user_profile.get("time_format", "12h") if user_profile else "12h"
 time_format_str = "%I:%M %p" if time_format_pref == "12h" else "%H:%M"
