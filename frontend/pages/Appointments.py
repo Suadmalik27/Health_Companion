@@ -398,7 +398,7 @@ if st.session_state.view_mode == "calendar":
                         </div>
                         <p class="appointment-purpose">{appointment.get('purpose', 'General checkup')}</p>
                         <p class="appointment-location">📍 {appointment.get('location', 'Not specified')}</p>
-                        <span class="appointment-status status-{status_class}>{status_text}</span>
+                        <span class="appointment-status status-{status_class}">{status_text}</span>
                     </div>
                     """, unsafe_allow_html=True)
                 
@@ -483,7 +483,7 @@ else:
                     </div>
                     <p class="appointment-purpose">{appointment.get('purpose', 'General checkup')}</p>
                     <p class="appointment-location">📍 {appointment.get('location', 'Not specified')}</p>
-                    <span class="appointment-status status-{status_class}>{status_text}</span>
+                    <span class="appointment-status status-{status_class}">{status_text}</span>
                 </div>
                 """, unsafe_allow_html=True)
             
