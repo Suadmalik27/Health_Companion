@@ -5,7 +5,6 @@ import requests
 from datetime import datetime, date, timedelta
 
 # --- CONFIGURATION & API CLIENT ---
-# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
 API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 # --- API CLIENT CLASS ---
@@ -18,10 +17,7 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            # --- YEH BADLAV HUA HAI ---
-            # Yahan self.get_headers ko theek karke self._get_headers kar diya gaya hai.
             return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
-            # --- BADLAV KHATAM ---
         except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
@@ -32,6 +28,45 @@ api = ApiClient(API_BASE_URL)
 # --- SECURITY CHECK ---
 if 'token' not in st.session_state:
     st.warning("Please login first to access this page."); st.stop()
+
+# --- STYLING (For the beautiful cards) ---
+st.markdown("""
+<style>
+.card {
+    background-color: #FFFFFF;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease-in-out;
+    height: 100%;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+.card h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: #333;
+}
+.card p {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0;
+}
+.card-green p { color: #2e7d32; }
+.card-blue p { color: #0277bd; }
+.card-orange p { color: #ef6c00; }
+.card-tip p {
+    font-size: 1rem;
+    font-weight: normal;
+    color: #555;
+    line-height: 1.4;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- DATA LOADING (EFFICIENT & CACHED) ---
 @st.cache_data(ttl=30)
@@ -68,9 +103,6 @@ def handle_med_taken(med_id):
 # --- MAIN DASHBOARD UI ---
 st.set_page_config(page_title="Dashboard", layout="wide")
 
-st.header(f"👋 Welcome Back!")
-st.write(f"Here's your summary for **{date.today().strftime('%A, %d %B %Y')}**.")
-
 with st.spinner("Loading your dashboard..."):
     dashboard_data = load_dashboard_data(api)
     user_profile = dashboard_data.get("user_profile")
@@ -82,6 +114,11 @@ with st.spinner("Loading your dashboard..."):
 if all_medications is None:
     st.error("Could not load medication data. Please try refreshing."); st.stop()
 
+# Personalized Welcome Message
+user_name = user_profile.get('full_name', 'User').split(' ')[0] if user_profile else 'User'
+st.header(f"👋 Welcome Back, {user_name}!")
+st.write(f"Here's your summary for **{date.today().strftime('%A, %d %B %Y')}**.")
+
 session_taken = st.session_state.get('taken_med_ids', []) or []
 api_taken = taken_med_ids_from_api or []
 st.session_state.taken_med_ids = list(set(session_taken + api_taken))
@@ -92,22 +129,33 @@ today = date.today()
 today_appointments = [app for app in all_appointments if datetime.fromisoformat(app['appointment_datetime']).date() == today] if all_appointments else []
 today_medications = [med for med in all_medications if med.get('is_active', True)]
 
-# --- "DAY SUMMARY" CARD SECTION ---
+# --- "DAY SUMMARY" CARD SECTION (IMPROVED UI) ---
 st.subheader("Today's Summary")
 s_col1, s_col2, s_col3 = st.columns(3)
 with s_col1:
     total_meds = len(today_medications)
     meds_taken_count = len(st.session_state.get('taken_med_ids', []))
-    st.metric(label="✅ Medicines Taken", value=f"{meds_taken_count} / {total_meds}")
+    st.markdown(f"""
+    <div class="card card-green">
+        <h3>✅ Medicines Taken</h3>
+        <p>{meds_taken_count} / {total_meds}</p>
+    </div>""", unsafe_allow_html=True)
 
 with s_col2:
-    st.metric(label="🗓️ Appointments Today", value=len(today_appointments))
+    st.markdown(f"""
+    <div class="card card-blue">
+        <h3>🗓️ Appointments Today</h3>
+        <p>{len(today_appointments)}</p>
+    </div>""", unsafe_allow_html=True)
 
 with s_col3:
     tip_content = health_tip['content'] if health_tip else "Stay hydrated."
     tip_category = health_tip['category'] if health_tip else "Health Tip"
-    st.markdown(f"**💡 {tip_category}**")
-    st.write(tip_content)
+    st.markdown(f"""
+    <div class="card card-orange card-tip">
+        <h3>💡 {tip_category}</h3>
+        <p>{tip_content}</p>
+    </div>""", unsafe_allow_html=True)
 
 st.divider()
 
