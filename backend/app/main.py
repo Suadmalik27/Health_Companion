@@ -84,4 +84,4 @@ async def shutdown_event():
 # Ek simple endpoint yeh check karne ke liye ki API chal rahi hai ya nahi.
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Senior Health Support API! Visit /docs for API documentation."}
+    return {"message": "Welcome to the Senior Health Support API! Visit /docs for API documentation new ."}
