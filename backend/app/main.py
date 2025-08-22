@@ -29,22 +29,7 @@ app = FastAPI(
 )
 
 
-# --- CORS (Cross-Origin Resource Sharing) Configuration ---
-# Yeh aapke Streamlit frontend ko aapke FastAPI backend se communicate karne deta hai.
-
-# === DEBUGGING KE LIYE IMPORTANT BADLAV ===
-# Hum yahan par ["*"] ka istemal kar rahe hain. Iska matlab hai "kisi bhi URL se
-# aane wali request ko allow karo". Yeh ek temporary step hai taaki hum check kar
-# sakein ki problem CORS ki hi hai ya nahi.
-# Agar isse aapki app chal jaati hai, to hum ise baad mein aur secure bana denge.
-origins = ["*"]
-
-# Yeh aapka original code hai jise hum baad mein wapas la sakte hain
-# origins = [
-#     "http://localhost",
-#     "http://localhost:8501",
-#     "https://health-companion-hnz5.onrender.com" 
-# ]
+ 
 
 app.add_middleware(
     CORSMiddleware,
