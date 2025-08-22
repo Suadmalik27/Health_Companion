@@ -111,7 +111,7 @@ def local_css():
 local_css()
 
 # API base URL
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 def get_auth_headers():
     """Get authorization headers with access token"""
