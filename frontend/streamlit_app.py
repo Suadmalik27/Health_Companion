@@ -103,7 +103,7 @@ def local_css():
 local_css()
 
 # API base URL
-API_BASE_URL = "https://health-companion-backend-44ug.onrender.com/"  # Update this if your backend is hosted elsewhere
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"  # Update this if your backend is hosted elsewhere
 
 def login_user(email, password):
     """Authenticate user with the backend API"""
