@@ -1,4 +1,4 @@
-# frontend/pages/Profile.py
+# frontend/pages/Profile.py (Fixed - No config import)
 
 import streamlit as st
 import requests
@@ -7,7 +7,6 @@ from PIL import Image
 import io
 import base64
 import os
-from config import get_api_base_url, get_auth_headers, make_api_request
 
 # Page configuration
 st.set_page_config(
@@ -17,11 +16,51 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get API URL from secrets with fallback
-try:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-except:
-    API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
+# Get API base URL directly
+def get_api_base_url():
+    """Get the API base URL from secrets, environment variables, or use default"""
+    try:
+        return st.secrets["API_BASE_URL"]
+    except:
+        try:
+            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+        except:
+            return "https://health-companion-backend-44ug.onrender.com"
+
+def get_auth_headers():
+    """Get authorization headers with access token"""
+    if 'access_token' not in st.session_state:
+        return None
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
+def make_api_request(method, endpoint, **kwargs):
+    """Make an API request with proper error handling"""
+    base_url = get_api_base_url()
+    url = f"{base_url}{endpoint}"
+    headers = get_auth_headers()
+    
+    if headers:
+        if 'headers' in kwargs:
+            kwargs['headers'].update(headers)
+        else:
+            kwargs['headers'] = headers
+    
+    # Add timeout if not specified
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 10
+    
+    try:
+        response = requests.request(method, url, **kwargs)
+        return response
+    except requests.exceptions.ConnectionError:
+        st.error("Cannot connect to the server. Please check your internet connection.")
+        return None
+    except requests.exceptions.Timeout:
+        st.error("Request timed out. Please try again.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return None
 
 # Custom CSS for styling
 def local_css():
@@ -171,69 +210,33 @@ def local_css():
 
 local_css()
 
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
 def fetch_user_data():
     """Fetch current user's data"""
-    headers = get_auth_headers()
-    if not headers:
-        return None
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/users/me", headers=headers, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        st.error(f"Failed to fetch user data: {response.status_code}")
-        return None
-    except Exception as e:
-        st.error(f"Error fetching user data: {str(e)}")
-        return None
+    response = make_api_request("GET", "/users/me")
+    if response and response.status_code == 200:
+        return response.json()
+    return None
 
 def fetch_medications():
     """Fetch user's medications for stats"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/medications/", headers=headers, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
+    response = make_api_request("GET", "/medications/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def fetch_appointments():
     """Fetch user's appointments for stats"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/appointments/", headers=headers, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
+    response = make_api_request("GET", "/appointments/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def fetch_contacts():
     """Fetch user's contacts for stats"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/contacts/", headers=headers, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
+    response = make_api_request("GET", "/contacts/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
 
 def update_user_profile(user_data):
     """Update user profile information"""
@@ -241,18 +244,10 @@ def update_user_profile(user_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.put(
-            f"{API_BASE_URL}/users/me",
-            json=user_data,
-            headers=headers,
-            timeout=10
-        )
-        if response.status_code == 200:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to update profile")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("PUT", "/users/me", json=user_data, headers=headers)
+    if response and response.status_code == 200:
+        return True, response.json()
+    return False, "Failed to update profile"
 
 def update_user_password(password_data):
     """Update user password"""
@@ -260,18 +255,10 @@ def update_user_password(password_data):
     if not headers:
         return False, "Not authenticated"
     
-    try:
-        response = requests.put(
-            f"{API_BASE_URL}/users/me/password",
-            json=password_data,
-            headers=headers,
-            timeout=10
-        )
-        if response.status_code == 200:
-            return True, response.json()
-        return False, response.json().get("detail", "Failed to update password")
-    except Exception as e:
-        return False, f"Error: {str(e)}"
+    response = make_api_request("PUT", "/users/me/password", json=password_data, headers=headers)
+    if response and response.status_code == 200:
+        return True, response.json()
+    return False, "Failed to update password"
 
 def upload_profile_photo(file):
     """Upload profile photo"""
@@ -281,13 +268,8 @@ def upload_profile_photo(file):
     
     try:
         files = {"file": (file.name, file.getvalue(), file.type)}
-        response = requests.put(
-            f"{API_BASE_URL}/users/me/photo",
-            files=files,
-            headers=headers,
-            timeout=30  # Longer timeout for file uploads
-        )
-        return response.status_code == 200
+        response = make_api_request("PUT", "/users/me/photo", files=files, headers=headers, timeout=30)
+        return response and response.status_code == 200
     except Exception as e:
         st.error(f"Error uploading photo: {str(e)}")
         return False
@@ -298,16 +280,8 @@ def delete_user_account():
     if not headers:
         return False
     
-    try:
-        response = requests.delete(
-            f"{API_BASE_URL}/users/me",
-            headers=headers,
-            timeout=10
-        )
-        return response.status_code == 204
-    except Exception as e:
-        st.error(f"Error deleting account: {str(e)}")
-        return False
+    response = make_api_request("DELETE", "/users/me", headers=headers)
+    return response and response.status_code == 204
 
 # Check if user is logged in
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -343,7 +317,7 @@ if user_data and user_data.get('profile_picture_url'):
     try:
         photo_url = user_data['profile_picture_url']
         if photo_url.startswith('/'):
-            photo_url = f"{API_BASE_URL}{photo_url}"
+            photo_url = f"{get_api_base_url()}{photo_url}"
         
         response = requests.get(photo_url, timeout=10)
         if response.status_code == 200:
