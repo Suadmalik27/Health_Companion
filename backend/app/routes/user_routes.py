@@ -1,4 +1,4 @@
-# backend/app/routes/user_routes.py (Fixed Email Configuration)
+# backend/app/routes/user_routes.py (Fixed Email Sending)
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 import os
 import shutil
 from jose import jwt, JWTError
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 
 # Local imports
 from .. import models
@@ -18,7 +17,8 @@ from ..auth import (
     create_access_token,
     get_current_user
 )
-from ..config import settings # Settings import karna zaroori hai
+from ..config import settings
+from ..utils import send_email  # Use the centralized email function
 
 router = APIRouter(
     prefix="/users",
@@ -28,20 +28,6 @@ router = APIRouter(
 # --- DIRECTORY SETUP FOR PROFILE PHOTOS ---
 UPLOAD_DIRECTORY = "./uploaded_images"
 os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
-
-# --- EMAIL CONFIGURATION FOR PASSWORD RESET ---
-# Yeh function banaya gaya hai taaki har baar naya configuration object na banana pade
-def get_email_config():
-    return ConnectionConfig(
-        MAIL_USERNAME=settings.MAIL_USERNAME,
-        MAIL_PASSWORD=settings.MAIL_PASSWORD,
-        MAIL_FROM=settings.MAIL_FROM,
-        MAIL_PORT=settings.MAIL_PORT,
-        MAIL_SERVER=settings.MAIL_SERVER,
-        MAIL_STARTTLS=True,
-        MAIL_SSL_TLS=False,
-        USE_CREDENTIALS=True,
-    )
 
 # --- Authentication Endpoints ---
 
@@ -79,8 +65,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-
-# --- NAYA CODE: PASSWORD RESET ENDPOINTS ---
+# --- PASSWORD RESET ENDPOINTS ---
 
 @router.post("/forgot-password")
 async def forgot_password(
@@ -97,21 +82,20 @@ async def forgot_password(
     token = create_access_token(data={"sub": user.email})
     reset_link = f"{settings.FRONTEND_URL}/Reset_Password?token={token}"
 
-    message = MessageSchema(
-        subject="[Senior Health App] Password Reset Request",
-        recipients=[user.email],
-        body=f"""
-            <p>Hello {user.full_name or 'user'},</p>
-            <p>You requested a password reset. Please click the link below to set a new password:</p>
-            <p><a href="{reset_link}">Reset Your Password</a></p>
-            <p>This link will expire in {settings.ACCESS_TOKEN_EXPIRE_MINUTES} minutes.</p>
-            <p>If you did not request this, please ignore this email.</p>
-        """,
-        subtype="html"
-    )
+    # Prepare email content
+    subject = "[Health Companion] Password Reset Request"
+    body = f"""
+        <p>Hello {user.full_name or 'User'},</p>
+        <p>You requested a password reset. Please click the link below to set a new password:</p>
+        <p><a href="{reset_link}">Reset Your Password</a></p>
+        <p>This link will expire in {settings.ACCESS_TOKEN_EXPIRE_MINUTES} minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+        <br>
+        <p>Best regards,<br>Health Companion Team</p>
+    """
 
-    fm = FastMail(get_email_config())
-    background_tasks.add_task(fm.send_message, message)
+    # Send email in background
+    background_tasks.add_task(send_email, subject, [user.email], body)
     return {"message": "If an account with that email exists, a reset link has been sent."}
 
 @router.post("/reset-password")
@@ -142,9 +126,6 @@ def reset_password(
     db.commit()
 
     return {"message": "Password has been reset successfully."}
-
-# --- NAYA CODE KHATAM ---
-
 
 # --- User Profile Management Endpoints ---
 
