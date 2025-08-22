@@ -1,14 +1,12 @@
-# frontend/pages/2_Medications.py (100% Complete and Fully Updated)
+# frontend/pages/2_Medications.py
 
 import streamlit as st
 import requests
 from datetime import datetime
 
 # --- CONFIGURATION & API CLIENT ---
-if "API_BASE_URL" in st.secrets:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-else:
-    API_BASE_URL = "http://127.0.0.1:8000"
+# Backend URL ko permanent set kar diya gaya hai aapke request ke anusaar.
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
 # --- API CLIENT CLASS (Robust Version) ---
 class ApiClient:
@@ -20,8 +18,9 @@ class ApiClient:
         return {}
     def _make_request(self, method, endpoint, **kwargs):
         try:
-            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), **kwargs)
-        except requests.exceptions.ConnectionError:
+            # Setting a timeout for all requests
+            return requests.request(method, f"{self.base_url}{endpoint}", headers=self._get_headers(), timeout=10, **kwargs)
+        except requests.exceptions.RequestException:
             st.error("Connection Error: Could not connect to the backend server."); return None
     def post(self, endpoint, json=None): return self._make_request("POST", endpoint, json=json)
     def get(self, endpoint, params=None): return self._make_request("GET", endpoint, params=params)
@@ -44,8 +43,8 @@ st.write("Manage your daily medication schedule here. Add photos to easily ident
 # --- ADD NEW MEDICATION FORM ---
 with st.expander("➕ Add New Medication"):
     with st.form("new_med_form", clear_on_submit=True):
-        name = st.text_input("Medication Name", placeholder="e.g., Vitamin D")
-        dosage = st.text_input("Dosage", placeholder="e.g., 1 tablet")
+        name = st.text_input("Medication Name*", placeholder="e.g., Vitamin D")
+        dosage = st.text_input("Dosage*", placeholder="e.g., 1 tablet")
         timing = st.time_input("Time to Take")
         if st.form_submit_button("Add Medication", use_container_width=True):
             if not name or not dosage:
@@ -138,7 +137,7 @@ if response and response.status_code == 200:
                             else:
                                 st.error("Could not update medication status.")
                     with btn_cols[3]:
-                        if st.button("Delete", key=f"del_med_{med['id']}", use_container_width=True, type="secondary"):
+                        if st.button("Delete", key=f"del_med_{med['id']}", use_container_width=True, type="secondary", help="This will permanently delete the medication."):
                             with st.spinner("Deleting..."):
                                 delete_response = api.delete(f"/medications/{med['id']}")
                             if delete_response and delete_response.status_code == 204:
