@@ -1,294 +1,434 @@
-# frontend/streamlit_app.py (Updated without config.py)
-
+# frontend/streamlit_app.py (Fixed Login Issue)
 import streamlit as st
 import requests
-from datetime import datetime
 import time
 import os
 
-# Page configuration
+# --- CONFIGURATION & PAGE CONFIG ---
 st.set_page_config(
-    page_title="Health Companion - Login",
-    page_icon="🩺",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="Health Companion", 
+    layout="wide", 
+    initial_sidebar_state="expanded",
+    menu_items=None
 )
 
-# Get API base URL directly
-def get_api_base_url():
-    """Get the API base URL from secrets, environment variables, or use default"""
-    try:
-        return st.secrets["API_BASE_URL"]
-    except:
+# === PRODUCTION/LOCAL URL DETECTION ===
+API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+
+# --- API CLIENT CLASS ---
+class ApiClient:
+    def __init__(self, base_url): 
+        self.base_url = base_url
+    
+    def _get_headers(self):
+        token = st.session_state.get("token", None)
+        if token: 
+            return {"Authorization": f"Bearer {token}"}
+        return {}
+    
+    def _make_request(self, method, endpoint, **kwargs):
         try:
-            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
-        except:
-            return "https://health-companion-backend-44ug.onrender.com"
-
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
-def make_api_request(method, endpoint, **kwargs):
-    """Make an API request with proper error handling"""
-    base_url = get_api_base_url()
-    url = f"{base_url}{endpoint}"
-    headers = get_auth_headers()
+            return requests.request(
+                method, 
+                f"{self.base_url}{endpoint}", 
+                headers=self._get_headers(), 
+                timeout=10, 
+                **kwargs
+            )
+        except requests.exceptions.RequestException as e:
+            st.error(f"Connection Error: Could not connect to backend. Error: {str(e)}")
+            return None
     
-    if headers:
-        if 'headers' in kwargs:
-            kwargs['headers'].update(headers)
-        else:
-            kwargs['headers'] = headers
+    def get(self, endpoint, params=None): 
+        return self._make_request("GET", endpoint, params=params)
     
-    # Add timeout if not specified
-    if 'timeout' not in kwargs:
-        kwargs['timeout'] = 10
+    def post(self, endpoint, data=None, json=None): 
+        return self._make_request("POST", endpoint, data=data, json=json)
     
-    try:
-        response = requests.request(method, url, **kwargs)
-        return response
-    except requests.exceptions.ConnectionError:
-        st.error("Cannot connect to the server. Please check your internet connection.")
-        return None
-    except requests.exceptions.Timeout:
-        st.error("Request timed out. Please try again.")
-        return None
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        return None
+    def put(self, endpoint, json=None): 
+        return self._make_request("PUT", endpoint, json=json)
+    
+    def delete(self, endpoint): 
+        return self._make_request("DELETE", endpoint)
 
-# Custom CSS for styling
-def local_css():
+api = ApiClient(API_BASE_URL)
+
+# --- STYLING FUNCTIONS ---
+def apply_global_styles():
     st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    .login-container {
-        background-color: white;
-        padding: 2.5rem;
-        border-radius: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        width: 100%;
-        max-width: 450px;
-    }
-    .logo-container {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .logo {
-        font-size: 2.5rem;
-        font-weight: bold;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.5rem;
-    }
-    .tagline {
-        color: #666;
-        font-size: 1rem;
-        margin-bottom: 2rem;
-    }
-    .stButton button {
-        width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem;
-        border-radius: 50px;
-        font-weight: bold;
-        margin-top: 1rem;
-    }
-    .stButton button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-    }
-    .footer {
-        text-align: center;
-        margin-top: 2rem;
-        color: #888;
-        font-size: 0.9rem;
-    }
-    .error-message {
-        background-color: #ffebee;
-        color: #c62828;
-        padding: 0.75rem;
-        border-radius: 5px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #c62828;
-    }
-    .success-message {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        padding: 0.75rem;
-        border-radius: 5px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #2e7d32;
-    }
-    .register-link {
-        text-align: center;
-        margin-top: 1.5rem;
-        color: #666;
-    }
-    </style>
+        <style>
+            /* Main content area */
+            .main .block-container {
+                padding-top: 2rem;
+                padding-bottom: 5rem;
+            }
+            
+            /* Sidebar styling */
+            section[data-testid="stSidebar"] {
+                background-color: #f0f2f6;
+            }
+            
+            section[data-testid="stSidebar"] .stButton button {
+                width: 100%;
+                margin: 5px 0;
+                text-align: left;
+                padding: 10px 15px;
+                border-radius: 8px;
+                border: 1px solid #e0e0e0;
+                background-color: white;
+                color: #262730;
+            }
+            
+            section[data-testid="stSidebar"] .stButton button:hover {
+                background-color: #0068c9;
+                color: white;
+                border-color: #0068c9;
+            }
+            
+            /* Header styling */
+            .header-container {
+                background: linear-gradient(135deg, #0068c9 0%, #004d99 100%);
+                color: white;
+                padding: 1.5rem;
+                border-radius: 12px;
+                margin-bottom: 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            }
+            
+            /* Emergency bar */
+            .emergency-bar {
+                background-color: #D32F2F; 
+                color: white;
+                position: fixed; 
+                bottom: 0; 
+                left: 0; 
+                width: 100%; 
+                text-align: center;
+                padding: 15px 0; 
+                font-size: 1.2rem; 
+                font-weight: bold;
+                z-index: 1000; 
+                text-decoration: none; 
+                border-top: 3px solid #B71C1C;
+            }
+            .emergency-bar:hover { 
+                background-color: #B71C1C; 
+                color: white; 
+            }
+
+            /* Dark mode compatibility */
+            h1, h2, h3, h4, h5, h6, p, span, div {
+                color: var(--text-color, #262730) !important;
+            }
+        </style>
     """, unsafe_allow_html=True)
 
-local_css()
-
-def login_user(email, password):
-    """Authenticate user with the backend API"""
-    try:
-        # Prepare the form data for OAuth2 password flow
-        form_data = {
-            "username": email,
-            "password": password,
-            "grant_type": "password",
-            "scope": "",
-            "client_id": "",
-            "client_secret": ""
-        }
-        
-        # Make the request to the login endpoint
-        response = make_api_request("POST", "/users/token", data=form_data, 
-                                  headers={"Content-Type": "application/x-www-form-urlencoded"})
-        
-        if response and response.status_code == 200:
-            # Successful login
-            token_data = response.json()
-            # Store the token in session state
-            st.session_state.access_token = token_data["access_token"]
-            st.session_state.logged_in = True
-            st.session_state.user_email = email
-            return True, "Login successful!"
-        else:
-            # Failed login
-            return False, "Invalid email or password"
-            
-    except Exception as e:
-        return False, f"An error occurred: {str(e)}"
-
-def register_user(full_name, email, password):
-    """Register a new user with the backend API"""
-    try:
-        user_data = {
-            "full_name": full_name,
-            "email": email,
-            "password": password
-        }
-        
-        response = make_api_request("POST", "/users/register", json=user_data)
-        
-        if response and response.status_code == 201:
-            return True, "Registration successful! Please log in."
-        else:
-            error_detail = response.json().get("detail", "Registration failed") if response else "Registration failed"
-            return False, error_detail
-            
-    except Exception as e:
-        return False, f"An error occurred: {str(e)}"
-
-# Initialize session state variables
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'access_token' not in st.session_state:
-    st.session_state.access_token = None
-if 'user_email' not in st.session_state:
-    st.session_state.user_email = None
-if 'show_register' not in st.session_state:
-    st.session_state.show_register = False
-
-# If user is already logged in, redirect to dashboard
-if st.session_state.logged_in and st.session_state.access_token:
-    st.switch_page("pages/Dashboard.py")
-
-# Main login/register interface
-col1, col2, col3 = st.columns([1, 2, 1])
-
-with col2:
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+# --- HEADER COMPONENT ---
+def create_header():
+    current_time = time.strftime("%I:%M:%S %p")
+    current_date = time.strftime("%A, %B %d, %Y")
     
-    # Logo and tagline
-    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    st.markdown('<h1 class="logo">🩺 Health Companion</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="tagline">Your personal health management assistant</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    header_html = f"""
+        <div class="header-container">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1 style="margin: 0; font-weight: 700;">Health Companion</h1>
+                    <p style="margin: 0; opacity: 0.9;">Your Medical Reminder & Support Assistant</p>
+                </div>
+                <div style="text-align: right;">
+                    <h2 style="margin: 0; font-weight: 600;">{current_time}</h2>
+                    <p style="margin: 0; opacity: 0.9;">{current_date}</p>
+                </div>
+            </div>
+        </div>
+    """
+    st.markdown(header_html, unsafe_allow_html=True)
+
+# --- AUTHENTICATION PAGE FUNCTION ---
+def show_login_register_page():
+    # Center the login form
+    st.markdown("""
+        <style>
+            .main .block-container {
+                padding-top: 5rem;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
-    # Show registration form if needed
-    if st.session_state.show_register:
-        st.subheader("Create an Account")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        # App title
+        st.markdown(
+            """<div style="text-align: center;">
+                <h1 style="color: #0068c9; font-weight: 700;">🩺 Health Companion</h1>
+                <p style="color: #555; font-size: 1.2rem;">Your Medical Reminder & Support Assistant</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
         
-        with st.form("register_form"):
-            full_name = st.text_input("Full Name")
-            email = st.text_input("Email Address")
-            password = st.text_input("Password", type="password")
-            confirm_password = st.text_input("Confirm Password", type="password")
-            
-            register_submitted = st.form_submit_button("Register")
-            
-            if register_submitted:
-                if not full_name or not email or not password:
-                    st.error("Please fill in all fields")
-                elif password != confirm_password:
-                    st.error("Passwords do not match")
-                else:
-                    success, message = register_user(full_name, email, password)
-                    if success:
-                        st.success(message)
-                        st.session_state.show_register = False
+        st.write("")
+        
+        if st.session_state.get('just_registered', False):
+            st.success("Registration successful!")
+            del st.session_state['just_registered']
+
+        # Login/Register tabs
+        login_tab, register_tab = st.tabs(["**Sign In**", "**Create Account**"])
+        
+        with login_tab:
+            with st.form("login_form"):
+                email = st.text_input("Email", placeholder="you@example.com")
+                password = st.text_input("Password", type="password")
+                
+                if st.form_submit_button("Sign In", use_container_width=True):
+                    if not email or not password:
+                        st.error("Please enter both email and password")
                     else:
-                        st.error(message)
-        
-        st.markdown('<div class="register-link">', unsafe_allow_html=True)
-        if st.button("Already have an account? Log in"):
-            st.session_state.show_register = False
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Show login form
-    else:
-        st.subheader("Sign In to Your Account")
-        
-        with st.form("login_form"):
-            email = st.text_input("Email Address")
-            password = st.text_input("Password", type="password")
-            login_submitted = st.form_submit_button("Sign In")
-            
-            if login_submitted:
-                if not email or not password:
-                    st.error("Please enter both email and password")
-                else:
-                    with st.spinner("Signing in..."):
-                        success, message = login_user(email, password)
-                        if success:
-                            st.success(message)
-                            time.sleep(1)  # Brief delay to show success message
+                        with st.spinner("Authenticating..."):
+                            response = api.post(
+                                "/users/token", 
+                                data={"username": email, "password": password, "grant_type": "password"}
+                            )
+                        
+                        if response and response.status_code == 200:
+                            st.session_state["token"] = response.json()["access_token"]
+                            st.session_state["user_email"] = email
+                            st.session_state["user_name"] = email.split('@')[0]
+                            st.session_state["logged_in"] = True  # Add this flag
+                            st.toast("Login Successful!", icon="🎉")
                             st.rerun()
                         else:
-                            st.error(message)
+                            st.error("Login Failed: Incorrect email or password.")
         
-        st.markdown('<div class="register-link">', unsafe_allow_html=True)
-        if st.button("Don't have an account? Register here"):
-            st.session_state.show_register = True
+        with register_tab:
+            with st.form("register_form"):
+                full_name = st.text_input("Full Name")
+                new_email = st.text_input("Email", placeholder="you@example.com")
+                new_password = st.text_input("Create Password", type="password")
+                
+                if st.form_submit_button("Create Account", use_container_width=True):
+                    if not all([full_name, new_email, new_password]):
+                        st.error("Please fill all fields")
+                    else:
+                        with st.spinner("Registering..."):
+                            response = api.post(
+                                "/users/register", 
+                                json={
+                                    "full_name": full_name, 
+                                    "email": new_email, 
+                                    "password": new_password
+                                }
+                            )
+                        
+                        if response and response.status_code == 201:
+                            st.session_state['just_registered'] = True
+                            st.rerun()
+                        else:
+                            error_detail = "Registration failed"
+                            if response is not None:
+                                try: 
+                                    error_detail = response.json().get('detail', 'Email may already exist.')
+                                except: 
+                                    error_detail = "Server error occurred"
+                            st.error(f"Registration Failed: {error_detail}")
+        
+        # Forgot password section
+        st.write("---")
+        
+        if st.session_state.get("show_forgot_password", False):
+            st.subheader("Reset Your Password")
+            with st.form("reset_form"):
+                email_reset = st.text_input("Email Address", key="reset_email")
+                c1_reset, c2_reset = st.columns(2)
+                
+                with c1_reset:
+                    if st.form_submit_button("Send Reset Link", use_container_width=True, type="primary"):
+                        if not email_reset:
+                            st.error("Please enter your email")
+                        else:
+                            with st.spinner("Sending..."):
+                                response = api.post(
+                                    "/users/forgot-password", 
+                                    json={"email": email_reset}
+                                )
+                            
+                            if response and response.status_code == 200:
+                                st.success("Reset link sent! Please check your email.")
+                                st.session_state.show_forgot_password = False
+                                st.rerun()
+                            else:
+                                st.error("Something went wrong. Please try again.")
+                
+                with c2_reset:
+                    if st.form_submit_button("Cancel", use_container_width=True):
+                        st.session_state.show_forgot_password = False
+                        st.rerun()
+        else:
+            if st.button("Forgot Password?", type="secondary", use_container_width=True):
+                st.session_state.show_forgot_password = True
+                st.rerun()
+
+# --- SIDEBAR COMPONENT ---
+def create_sidebar():
+    with st.sidebar:
+        st.title("🏥 Navigation")
+        st.write(f"Welcome, **{st.session_state.get('user_name', 'User')}**!")
+        st.divider()
+        
+        # Navigation options
+        nav_options = [
+            {"icon": "📊", "label": "Dashboard", "page": "Dashboard"},
+            {"icon": "💊", "label": "Medications", "page": "Medications"},
+            {"icon": "🗓️", "label": "Appointments", "page": "Appointments"},
+            {"icon": "📞", "label": "Emergency Contacts", "page": "Contacts"},
+            {"icon": "💡", "label": "Health Tips", "page": "Health_Tips"},
+            {"icon": "👤", "label": "Profile & Settings", "page": "Profile"}
+        ]
+        
+        for option in nav_options:
+            if st.button(f"{option['icon']} {option['label']}", key=f"nav_{option['page']}", use_container_width=True):
+                st.session_state.current_page = option['page']
+                st.rerun()
+        
+        st.divider()
+        
+        # Logout button
+        if st.button("🚪 Logout", use_container_width=True, type="secondary"):
+            st.session_state.clear()
+            st.toast("Logged out successfully.")
             st.rerun()
-            
-        if st.button("Forgot Password?"):
-            st.switch_page("pages/Reset_Password.py")
-        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- MAIN DASHBOARD CONTENT ---
+def show_dashboard():
+    create_header()
     
-    st.markdown('</div>', unsafe_allow_html=True)  # Close login-container
+    # Welcome message
+    st.write(f"### 👋 Welcome back, {st.session_state.get('user_name', 'User')}!")
+    st.write("Here's your health summary for today.")
     
-    # Footer
-    st.markdown('<div class="footer">', unsafe_allow_html=True)
-    st.markdown('© 2024 Health Companion | Senior Citizen Care App')
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Quick stats cards
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info("#### 💊 Medications Today")
+        st.write("**3 scheduled**")
+        st.write("2 taken ✅")
+        st.write("1 remaining ⏰")
+    
+    with col2:
+        st.info("#### 🗓️ Appointments")
+        st.write("**1 today**")
+        st.write("Dr. Smith - 3:00 PM")
+        st.write("Check-up ✅")
+    
+    with col3:
+        st.info("#### 💡 Health Tip")
+        st.write("**Stay Hydrated**")
+        st.write("Drink at least 8 glasses of water today to stay hydrated and support your medication effectiveness.")
+    
+    st.divider()
+    
+    # Recent activity
+    st.write("### 📋 Recent Activity")
+    
+    activity_col1, activity_col2 = st.columns(2)
+    
+    with activity_col1:
+        st.write("**Today's Medications**")
+        st.write("• Vitamin D - 9:00 AM ✅")
+        st.write("• Blood Pressure - 2:00 PM ⏰")
+        st.write("• Pain Relief - 8:00 PM ⏰")
+    
+    with activity_col2:
+        st.write("**Upcoming Appointments**")
+        st.write("• Dr. Smith - Today 3:00 PM")
+        st.write("• Dentist - Aug 25 10:00 AM")
+        st.write("• Eye Doctor - Sep 5 11:30 AM")
+    
+    st.divider()
+    
+    # Quick actions
+    st.write("### ⚡ Quick Actions")
+    
+    action_col1, action_col2, action_col3 = st.columns(3)
+    
+    with action_col1:
+        if st.button("Add Medication", use_container_width=True):
+            st.session_state.current_page = "Medications"
+            st.rerun()
+    
+    with action_col2:
+        if st.button("Schedule Appointment", use_container_width=True):
+            st.session_state.current_page = "Appointments"
+            st.rerun()
+    
+    with action_col3:
+        if st.button("Add Emergency Contact", use_container_width=True):
+            st.session_state.current_page = "Contacts"
+            st.rerun()
+
+# --- MAIN APPLICATION CONTROLLER ---
+def main():
+    apply_global_styles()
+
+    # Initialize session state variables
+    if "token" not in st.session_state:
+        st.session_state.token = None
+    
+    if "show_forgot_password" not in st.session_state:
+        st.session_state.show_forgot_password = False
+    
+    if "user_email" not in st.session_state:
+        st.session_state.user_email = None
+        
+    if "user_name" not in st.session_state:
+        st.session_state.user_name = None
+        
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Dashboard"
+    
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
+
+    # Show appropriate page based on authentication status
+    if not st.session_state.get("logged_in", False) and not st.session_state.token:
+        show_login_register_page()
+    else:
+        # Create sidebar navigation
+        create_sidebar()
+        
+        # Show main content based on current page
+        if st.session_state.current_page == "Dashboard":
+            show_dashboard()
+        elif st.session_state.current_page == "Medications":
+            st.switch_page("pages/Medications.py")
+        elif st.session_state.current_page == "Appointments":
+            st.switch_page("pages/Appointments.py")
+        elif st.session_state.current_page == "Contacts":
+            st.switch_page("pages/Contacts.py")
+        elif st.session_state.current_page == "Health_Tips":
+            st.switch_page("pages/Health_Tips.py")
+        elif st.session_state.current_page == "Profile":
+            st.switch_page("pages/Profile.py")
+        
+        # Emergency SOS bar (only show if not on contacts page)
+        if st.session_state.current_page != "Contacts":
+            response = api.get("/contacts/")
+            if response and response.status_code == 200 and response.json():
+                emergency_number = response.json()[0]['phone_number']
+                st.markdown(
+                    f'<a href="tel:{emergency_number}" class="emergency-bar">🚨 EMERGENCY SOS - CALL {emergency_number} 🚨</a>', 
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    '<a href="#" class="emergency-bar">⚠️ ADD EMERGENCY CONTACTS IN CONTACTS PAGE ⚠️</a>', 
+                    unsafe_allow_html=True
+                )
+
+if __name__ == "__main__":
+    main()
