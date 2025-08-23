@@ -1,8 +1,9 @@
-# frontend/pages/Profile.py (Premium UI Version)
+# frontend/pages/Profile.py (Fixed Syntax Error + Improved Dark Mode)
 import streamlit as st
 import requests
 from datetime import datetime
 import time
+import re
 
 # --- CONFIGURATION & API CLIENT ---
 API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
@@ -54,7 +55,7 @@ st.set_page_config(
     page_icon="👤"
 )
 
-# --- PREMIUM STYLING ---
+# --- DARK MODE COMPATIBLE STYLING ---
 st.markdown("""
 <style>
 /* Main Container Styling */
@@ -63,23 +64,24 @@ st.markdown("""
     padding-bottom: 3rem;
 }
 
-/* Card Styling */
+/* Card Styling - Dark Mode Compatible */
 .profile-card {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
     padding: 2rem;
-    color: white;
+    color: white !important;
     margin-bottom: 2rem;
     box-shadow: 0 10px 30px rgba(0,0,0,0.2);
 }
 
 .settings-card {
-    background: white;
+    background: var(--background-color, white);
+    color: var(--text-color, #2c3e50) !important;
     border-radius: 15px;
     padding: 1.5rem;
     margin: 1rem 0;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-color, #e0e0e0);
 }
 
 .danger-card {
@@ -87,15 +89,17 @@ st.markdown("""
     border-radius: 15px;
     padding: 1.5rem;
     margin: 1rem 0;
-    color: white;
+    color: white !important;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-/* Form Elements */
+/* Form Elements - Dark Mode Compatible */
 .stTextInput>div>div>input, .stTextArea>div>div>textarea {
     border-radius: 10px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-color, #e0e0e0);
     padding: 12px;
+    background-color: var(--input-background, white);
+    color: var(--input-text-color, #2c3e50) !important;
 }
 
 .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
@@ -110,6 +114,8 @@ st.markdown("""
     font-weight: 600;
     border: none;
     transition: all 0.3s ease;
+    background-color: var(--button-background, #667eea);
+    color: var(--button-text, white) !important;
 }
 
 .stButton>button:hover {
@@ -117,16 +123,20 @@ st.markdown("""
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 
-/* Radio Buttons */
+/* Radio Buttons - Dark Mode Compatible */
 .stRadio>div {
-    background: #f8f9fa;
+    background: var(--radio-background, #f8f9fa);
     padding: 1rem;
     border-radius: 10px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-color, #e0e0e0);
 }
 
 .stRadio>div:hover {
     border-color: #667eea;
+}
+
+.stRadio>div label {
+    color: var(--text-color, #2c3e50) !important;
 }
 
 /* Profile Photo */
@@ -144,11 +154,11 @@ st.markdown("""
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 
-/* Section Headers */
+/* Section Headers - Dark Mode Compatible */
 .section-header {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #2c3e50;
+    color: var(--text-color, #2c3e50) !important;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 3px solid #667eea;
@@ -157,7 +167,7 @@ st.markdown("""
 /* Status Messages */
 .success-message {
     background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
-    color: white;
+    color: white !important;
     padding: 1rem;
     border-radius: 10px;
     margin: 1rem 0;
@@ -165,21 +175,25 @@ st.markdown("""
 
 .error-message {
     background: linear-gradient(135deg, #ff6b6b 0%, #c44d4d 100%);
-    color: white;
+    color: white !important;
     padding: 1rem;
     border-radius: 10px;
     margin: 1rem 0;
 }
 
-/* Loading Spinner */
-.stSpinner>div>div {
-    border-color: #667eea transparent transparent transparent;
+/* Text Colors for Dark Mode */
+h1, h2, h3, h4, h5, h6, p, span, div {
+    color: var(--text-color, #2c3e50) !important;
 }
 
-/* Custom Checkbox */
-.stCheckbox>label {
-    font-weight: 600;
-    color: #dc3545;
+/* Dark Mode Specific Overrides */
+[data-testid="stAppViewContainer"] {
+    background-color: var(--background-color, white);
+}
+
+/* Ensure all text is visible in dark mode */
+.stMarkdown, .stText, .stTitle, .stHeader {
+    color: var(--text-color, #2c3e50) !important;
 }
 
 /* Responsive Design */
@@ -195,8 +209,8 @@ st.markdown("""
 # --- PROFILE PAGE CONTENT ---
 st.markdown("""
 <div class="profile-card">
-    <h1 style="margin: 0; color: white; font-size: 2.5rem;">👤 My Profile</h1>
-    <p style="margin: 0; opacity: 0.9; font-size: 1.1rem;">Manage your personal information and preferences</p>
+    <h1 style="margin: 0; color: white !important; font-size: 2.5rem;">👤 My Profile</h1>
+    <p style="margin: 0; opacity: 0.9; font-size: 1.1rem; color: white !important;">Manage your personal information and preferences</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -215,12 +229,14 @@ with col1:
     # Profile Photo Section
     st.markdown("""
     <div class="settings-card">
-        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">📸 Profile Photo</h3>
+        <h3 style="margin: 0 0 1rem 0; color: var(--text-color, #2c3e50) !important;">📸 Profile Photo</h3>
     """, unsafe_allow_html=True)
     
     pfp_url = user_data.get("profile_picture_url")
     if pfp_url:
-        full_image_url = f"{API_BASE_URL}/{pfp_url.replace('\\', '/')}"
+        # FIXED: Remove backslash from f-string expression
+        cleaned_url = pfp_url.replace('\\', '/')
+        full_image_url = f"{API_BASE_URL}/{cleaned_url}"
         st.markdown(f"""
         <div class="profile-photo-container">
             <img src="{full_image_url}" class="profile-photo" alt="Profile Picture">
@@ -269,7 +285,7 @@ with col2:
     # Personal Information Form
     st.markdown("""
     <div class="settings-card">
-        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">📝 Personal Information</h3>
+        <h3 style="margin: 0 0 1rem 0; color: var(--text-color, #2c3e50) !important;">📝 Personal Information</h3>
     """, unsafe_allow_html=True)
     
     with st.form("update_profile_form"):
@@ -341,7 +357,7 @@ with col2:
     # App Preferences
     st.markdown("""
     <div class="settings-card">
-        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">⚙️ App Preferences</h3>
+        <h3 style="margin: 0 0 1rem 0; color: var(--text-color, #2c3e50) !important;">⚙️ App Preferences</h3>
     """, unsafe_allow_html=True)
     
     with st.form("preferences_form"):
@@ -395,7 +411,7 @@ with col2:
 # Password Change Section
 st.markdown("""
 <div class="settings-card">
-    <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">🔒 Security Settings</h3>
+    <h3 style="margin: 0 0 1rem 0; color: var(--text-color, #2c3e50) !important;">🔒 Security Settings</h3>
 """, unsafe_allow_html=True)
 
 with st.form("update_password_form", clear_on_submit=True):
@@ -469,8 +485,8 @@ st.markdown("</div>", unsafe_allow_html=True)
 # Account Deletion Section
 st.markdown("""
 <div class="danger-card">
-    <h3 style="margin: 0 0 1rem 0; color: white;">⚠️ Danger Zone</h3>
-    <p style="margin: 0 0 1rem 0; opacity: 0.9;">
+    <h3 style="margin: 0 0 1rem 0; color: white !important;">⚠️ Danger Zone</h3>
+    <p style="margin: 0 0 1rem 0; opacity: 0.9; color: white !important;">
         This action cannot be undone. All your data will be permanently deleted.
     </p>
 """, unsafe_allow_html=True)
@@ -503,8 +519,8 @@ st.markdown("</div>", unsafe_allow_html=True)
 
 # Footer
 st.markdown("""
-<div style="text-align: center; margin-top: 3rem; color: #6c757d;">
-    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0;">
+<div style="text-align: center; margin-top: 3rem; color: var(--text-color, #6c757d) !important;">
+    <hr style="border: none; border-top: 1px solid var(--border-color, #e0e0e0); margin: 2rem 0;">
     <p>🩺 Health Companion • Your trusted medical assistant</p>
 </div>
 """, unsafe_allow_html=True)
