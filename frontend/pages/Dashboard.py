@@ -1,9 +1,10 @@
-# frontend/pages/Dashboard.py (Fixed Timing + Dark Mode + API URL)
+# frontend/pages/Dashboard.py (Fixed Indian Timezone + Dark Mode)
 import streamlit as st
 import requests
 from datetime import datetime, date, timedelta
 import time
 import os
+import pytz
 
 # Set page config first
 st.set_page_config(page_title="Dashboard", layout="wide")
@@ -49,6 +50,20 @@ api = ApiClient(API_BASE_URL)
 if 'token' not in st.session_state:
     st.warning("Please login first to access this page.")
     st.stop()
+
+# --- TIMEZONE SETUP ---
+INDIAN_TIMEZONE = pytz.timezone('Asia/Kolkata')
+
+def get_indian_time():
+    """Get current time in Indian timezone"""
+    return datetime.now(INDIAN_TIMEZONE)
+
+def format_time_for_display(dt, time_format="12h"):
+    """Format datetime for display based on user preference"""
+    if time_format == "12h":
+        return dt.strftime('%I:%M:%S %p')
+    else:
+        return dt.strftime('%H:%M:%S')
 
 # --- DARK MODE COMPATIBLE STYLING ---
 st.markdown("""
@@ -127,17 +142,34 @@ h1, h2, h3, h4, h5, h6, p, span, div, .stMarkdown {
     background-color: var(--background-color, #ffffff) !important;
     color: var(--text-color, #333333) !important;
 }
+
+/* Indian time badge */
+.indian-time-badge {
+    background: linear-gradient(135deg, #FF9933 0%, #138808 100%);
+    color: white !important;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    margin-left: 10px;
+    display: inline-block;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # --- LIVE CLOCK COMPONENT ---
 def create_live_clock():
-    current_time = datetime.now().strftime("%I:%M:%S %p")
-    current_date = datetime.now().strftime("%A, %B %d, %Y")
+    """Create live clock showing Indian time"""
+    indian_time = get_indian_time()
+    current_time = format_time_for_display(indian_time, "12h")
+    current_date = indian_time.strftime("%A, %B %d, %Y")
     
     clock_html = f"""
         <div style="text-align: right; margin-bottom: 1rem;">
-            <div class="live-clock">{current_time}</div>
+            <div style="display: flex; align-items: center; justify-content: flex-end;">
+                <div class="live-clock">{current_time}</div>
+                <span class="indian-time-badge">🇮🇳 IST</span>
+            </div>
             <div class="live-date">{current_date}</div>
         </div>
     """
@@ -196,21 +228,31 @@ def load_contacts():
 
 # --- TIME FORMATTING FUNCTION ---
 def format_time(time_str, time_format="12h"):
-    """Convert time string to proper format"""
+    """Convert time string to proper format in Indian timezone"""
     try:
         if isinstance(time_str, str):
             # Handle different time string formats
             if ':' in time_str:
+                # Parse the time string
                 time_obj = datetime.strptime(time_str, '%H:%M:%S').time()
+                
+                # Create a datetime object with today's date and the parsed time
+                today = get_indian_time().date()
+                datetime_obj = datetime.combine(today, time_obj)
+                
+                # Localize to Indian timezone
+                datetime_obj = INDIAN_TIMEZONE.localize(datetime_obj)
+                
+                if time_format == "12h":
+                    return datetime_obj.strftime('%I:%M %p')
+                else:
+                    return datetime_obj.strftime('%H:%M')
             else:
-                time_obj = datetime.strptime(time_str, '%H:%M:%S.%f').time()
-            
-            if time_format == "12h":
-                return time_obj.strftime('%I:%M %p')
-            else:
-                return time_obj.strftime('%H:%M')
+                # Handle other time formats if needed
+                return time_str
         return time_str
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        print(f"Time formatting error: {e}")
         return time_str
 
 # --- CALLBACK FUNCTION FOR BUTTONS ---
@@ -247,7 +289,7 @@ def alert_all_contacts(contacts):
 
 # --- MAIN DASHBOARD UI ---
 def main_dashboard():
-    # Create live clock
+    # Create live clock with Indian time
     clock_placeholder = create_live_clock()
     
     # Load all data
@@ -263,15 +305,19 @@ def main_dashboard():
         st.error("Could not load your profile data. Please try refreshing.")
         st.stop()
     
-    # Update live clock every second
+    # Update live clock every second with Indian time
     if st.session_state.get('clock_running', True):
         while st.session_state.clock_running:
-            current_time = datetime.now().strftime("%I:%M:%S %p")
-            current_date = datetime.now().strftime("%A, %B %d, %Y")
+            indian_time = get_indian_time()
+            current_time = format_time_for_display(indian_time, "12h")
+            current_date = indian_time.strftime("%A, %B %d, %Y")
             
             clock_html = f"""
                 <div style="text-align: right; margin-bottom: 1rem;">
-                    <div class="live-clock">{current_time}</div>
+                    <div style="display: flex; align-items: center; justify-content: flex-end;">
+                        <div class="live-clock">{current_time}</div>
+                        <span class="indian-time-badge">🇮🇳 IST</span>
+                    </div>
                     <div class="live-date">{current_date}</div>
                 </div>
             """
@@ -282,7 +328,10 @@ def main_dashboard():
     # Personalized Welcome Message
     user_name = user_profile.get('full_name', 'User').split(' ')[0] if user_profile else 'User'
     st.header(f"👋 Welcome Back, {user_name}!")
-    st.write(f"Here's your summary for **{date.today().strftime('%A, %d %B %Y')}**.")
+    
+    # Display date in Indian format
+    indian_date = get_indian_time().strftime("%A, %d %B %Y")
+    st.write(f"Here's your summary for **{indian_date}**.")
     
     # Process data
     today = date.today()
@@ -293,7 +342,9 @@ def main_dashboard():
     for app in all_appointments:
         try:
             if 'appointment_datetime' in app:
+                # Parse appointment datetime and convert to Indian timezone
                 app_datetime = datetime.fromisoformat(app['appointment_datetime'].replace('Z', '+00:00'))
+                app_datetime = app_datetime.astimezone(INDIAN_TIMEZONE)
                 if app_datetime.date() == today:
                     today_appointments.append(app)
         except (ValueError, TypeError):
@@ -390,7 +441,7 @@ def main_dashboard():
                     
                     with m_col2:
                         st.markdown(f"**{med.get('name', 'Unknown Medication')}**")
-                        # FIXED: Use proper time formatting function
+                        # FIXED: Use proper time formatting function for Indian time
                         med_time = format_time(med.get('timing'), time_format_pref)
                         st.caption(f"{med.get('dosage', '')} - Due at {med_time}")
                     
@@ -425,18 +476,25 @@ def main_dashboard():
                     with a_col2:
                         st.markdown(f"**{app.get('doctor_name', 'Unknown Doctor')}**")
                         try:
+                            # Parse and convert to Indian timezone
                             app_time = datetime.fromisoformat(
                                 app['appointment_datetime'].replace('Z', '+00:00')
                             )
-                            # FIXED: Use proper time formatting
+                            app_time = app_time.astimezone(INDIAN_TIMEZONE)
+                            
+                            # Format based on user preference
                             if time_format_pref == "12h":
                                 formatted_time = app_time.strftime('%I:%M %p')
                             else:
                                 formatted_time = app_time.strftime('%H:%M')
+                                
+                            # Add date if needed
+                            formatted_datetime = f"{app_time.strftime('%d %b')} at {formatted_time}"
+                            
                         except:
-                            formatted_time = "Unknown time"
+                            formatted_datetime = "Unknown time"
                         
-                        st.caption(f"{app.get('purpose', 'Check-up')} at {formatted_time}")
+                        st.caption(f"{app.get('purpose', 'Check-up')} - {formatted_datetime}")
                         st.caption(f"📍 {app.get('location', 'Not specified')}")
                     
                     if st.button("View Details", key=f"view_app_{app.get('id')}", use_container_width=True):
