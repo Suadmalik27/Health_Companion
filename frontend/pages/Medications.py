@@ -20,10 +20,10 @@ st.set_page_config(
 def get_api_base_url():
     """Get the API base URL from secrets, environment variables, or use default"""
     try:
-        return st.secrets["API_BASE_URL"]
+        return st.secrets["API_BASE_URL1"]
     except:
         try:
-            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
+            return os.environ.get("https://health-companion-backend-44ug.onrender.com")
         except:
             return "https://health-companion-backend-44ug.onrender.com"
 
