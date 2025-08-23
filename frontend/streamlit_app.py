@@ -279,7 +279,16 @@ def create_sidebar():
         st.write(f"Welcome, **{st.session_state.get('user_name', 'User')}**!")
         st.divider()
         
-         
+        # Navigation options
+        nav_options = [
+            {"icon": "📊", "label": "Dashboard", "page": "Dashboard"},
+            {"icon": "💊", "label": "Medications", "page": "Medications"},
+            {"icon": "🗓️", "label": "Appointments", "page": "Appointments"},
+            {"icon": "📞", "label": "Emergency Contacts", "page": "Contacts"},
+            {"icon": "💡", "label": "Health Tips", "page": "Health_Tips"},
+            {"icon": "👤", "label": "Profile & Settings", "page": "Profile"}
+        ]
+        
         for option in nav_options:
             if st.button(f"{option['icon']} {option['label']}", key=f"nav_{option['page']}", use_container_width=True):
                 st.session_state.current_page = option['page']
