@@ -1,549 +1,510 @@
-# frontend/pages/Profile.py (Fixed - No config import)
-
+# frontend/pages/Profile.py (Premium UI Version)
 import streamlit as st
 import requests
-from datetime import datetime, date
-from PIL import Image
-import io
-import base64
-import os
+from datetime import datetime
+import time
 
-# Page configuration
+# --- CONFIGURATION & API CLIENT ---
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
+
+# --- API CLIENT CLASS ---
+class ApiClient:
+    def __init__(self, base_url):
+        self.base_url = base_url
+    
+    def _get_headers(self):
+        token = st.session_state.get("token", None)
+        if token: 
+            return {"Authorization": f"Bearer {token}"}
+        return {}
+    
+    def _make_request(self, method, endpoint, **kwargs):
+        try:
+            return requests.request(
+                method, 
+                f"{self.base_url}{endpoint}", 
+                headers=self._get_headers(), 
+                timeout=10, 
+                **kwargs
+            )
+        except requests.exceptions.RequestException:
+            st.error("Connection Error: Could not connect to the backend server.")
+            return None
+    
+    def get(self, endpoint, params=None): 
+        return self._make_request("GET", endpoint, params=params)
+    
+    def put(self, endpoint, json=None): 
+        return self._make_request("PUT", endpoint, json=json)
+    
+    def delete(self, endpoint): 
+        return self._make_request("DELETE", endpoint)
+
+api = ApiClient(API_BASE_URL)
+
+# --- SECURITY CHECK ---
+if 'token' not in st.session_state:
+    st.warning("Please login first to access this page.")
+    st.stop()
+
+# --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Profile - Health Companion",
-    page_icon="👤",
+    page_title="My Profile", 
     layout="wide",
-    initial_sidebar_state="expanded"
+    page_icon="👤"
 )
 
-# Get API base URL directly
-def get_api_base_url():
-    """Get the API base URL from secrets, environment variables, or use default"""
-    try:
-        return st.secrets["API_BASE_URL"]
-    except:
-        try:
-            return os.environ.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
-        except:
-            return "https://health-companion-backend-44ug.onrender.com"
+# --- PREMIUM STYLING ---
+st.markdown("""
+<style>
+/* Main Container Styling */
+.main .block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
 
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+/* Card Styling */
+.profile-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    color: white;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
 
-def make_api_request(method, endpoint, **kwargs):
-    """Make an API request with proper error handling"""
-    base_url = get_api_base_url()
-    url = f"{base_url}{endpoint}"
-    headers = get_auth_headers()
-    
-    if headers:
-        if 'headers' in kwargs:
-            kwargs['headers'].update(headers)
-        else:
-            kwargs['headers'] = headers
-    
-    # Add timeout if not specified
-    if 'timeout' not in kwargs:
-        kwargs['timeout'] = 10
-    
-    try:
-        response = requests.request(method, url, **kwargs)
-        return response
-    except requests.exceptions.ConnectionError:
-        st.error("Cannot connect to the server. Please check your internet connection.")
-        return None
-    except requests.exceptions.Timeout:
-        st.error("Request timed out. Please try again.")
-        return None
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        return None
+.settings-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+}
 
-# Custom CSS for styling
-def local_css():
-    st.markdown("""
-    <style>
-    .profile-container {
-        background: white;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        margin-bottom: 2rem;
+.danger-card {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Form Elements */
+.stTextInput>div>div>input, .stTextArea>div>div>textarea {
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+    padding: 12px;
+}
+
+.stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* Buttons */
+.stButton>button {
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* Radio Buttons */
+.stRadio>div {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+}
+
+.stRadio>div:hover {
+    border-color: #667eea;
+}
+
+/* Profile Photo */
+.profile-photo-container {
+    text-align: center;
+    padding: 1rem;
+}
+
+.profile-photo {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid white;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+/* Section Headers */
+.section-header {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid #667eea;
+}
+
+/* Status Messages */
+.success-message {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.error-message {
+    background: linear-gradient(135deg, #ff6b6b 0%, #c44d4d 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+/* Loading Spinner */
+.stSpinner>div>div {
+    border-color: #667eea transparent transparent transparent;
+}
+
+/* Custom Checkbox */
+.stCheckbox>label {
+    font-weight: 600;
+    color: #dc3545;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .profile-photo {
+        width: 150px;
+        height: 150px;
     }
-    .profile-header {
-        display: flex;
-        align-items: center;
-        gap: 2rem;
-        margin-bottom: 2rem;
-        padding-bottom: 1.5rem;
-        border-bottom: 2px solid #f0f0f0;
-    }
-    .profile-image-container {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-    }
-    .profile-image {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 4px solid #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-    .profile-image-placeholder {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 3rem;
-        color: white;
-        border: 4px solid #667eea;
-    }
-    .profile-info {
-        flex: 1;
-    }
-    .profile-name {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #2c3e50;
-        margin: 0 0 0.5rem 0;
-    }
-    .profile-email {
-        color: #666;
-        font-size: 1.1rem;
-        margin: 0 0 1rem 0;
-    }
-    .profile-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 1.5rem 0;
-    }
-    .stat-card {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        border-left: 4px solid #667eea;
-    }
-    .stat-number {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #667eea;
-        margin: 0;
-    }
-    .stat-label {
-        color: #666;
-        margin: 0;
-    }
-    .preference-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1.5rem;
-        border-left: 4px solid #4CAF50;
-    }
-    .danger-zone {
-        background: #fff5f5;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #ffebee;
-        margin-top: 2rem;
-    }
-    .danger-zone h3 {
-        color: #c62828;
-        margin-top: 0;
-    }
-    .form-section {
-        background: #f8f9fa;
-        padding: 1.5rem;
-        border-radius: 10px;
-        margin-bottom: 1.5rem;
-    }
-    .theme-option {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 1rem;
-        border: 2px solid #e0e0e0;
-        border-radius: 10px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        margin-bottom: 0.5rem;
-    }
-    .theme-option:hover {
-        border-color: #667eea;
-        background: #f0f4ff;
-    }
-    .theme-option.selected {
-        border-color: #667eea;
-        background: #e8f0ff;
-    }
-    .theme-preview {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .theme-light {
-        background: white;
-        border: 2px solid #e0e0e0;
-    }
-    .theme-dark {
-        background: #2c3e50;
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+}
+</style>
+""", unsafe_allow_html=True)
 
-local_css()
+# --- PROFILE PAGE CONTENT ---
+st.markdown("""
+<div class="profile-card">
+    <h1 style="margin: 0; color: white; font-size: 2.5rem;">👤 My Profile</h1>
+    <p style="margin: 0; opacity: 0.9; font-size: 1.1rem;">Manage your personal information and preferences</p>
+</div>
+""", unsafe_allow_html=True)
 
-def fetch_user_data():
-    """Fetch current user's data"""
-    response = make_api_request("GET", "/users/me")
-    if response and response.status_code == 200:
-        return response.json()
-    return None
+# Load user data
+with st.spinner("Loading your profile..."):
+    response = api.get("/users/me")
+    if not response or response.status_code != 200:
+        st.error("Could not fetch your profile data. Please try refreshing.")
+        st.stop()
+    user_data = response.json()
 
-def fetch_medications():
-    """Fetch user's medications for stats"""
-    response = make_api_request("GET", "/medications/")
-    if response and response.status_code == 200:
-        return response.json()
-    return []
+# --- MAIN LAYOUT ---
+col1, col2 = st.columns([1, 2], gap="large")
 
-def fetch_appointments():
-    """Fetch user's appointments for stats"""
-    response = make_api_request("GET", "/appointments/")
-    if response and response.status_code == 200:
-        return response.json()
-    return []
-
-def fetch_contacts():
-    """Fetch user's contacts for stats"""
-    response = make_api_request("GET", "/contacts/")
-    if response and response.status_code == 200:
-        return response.json()
-    return []
-
-def update_user_profile(user_data):
-    """Update user profile information"""
-    headers = get_auth_headers()
-    if not headers:
-        return False, "Not authenticated"
-    
-    response = make_api_request("PUT", "/users/me", json=user_data, headers=headers)
-    if response and response.status_code == 200:
-        return True, response.json()
-    return False, "Failed to update profile"
-
-def update_user_password(password_data):
-    """Update user password"""
-    headers = get_auth_headers()
-    if not headers:
-        return False, "Not authenticated"
-    
-    response = make_api_request("PUT", "/users/me/password", json=password_data, headers=headers)
-    if response and response.status_code == 200:
-        return True, response.json()
-    return False, "Failed to update password"
-
-def upload_profile_photo(file):
-    """Upload profile photo"""
-    headers = get_auth_headers()
-    if not headers:
-        return False
-    
-    try:
-        files = {"file": (file.name, file.getvalue(), file.type)}
-        response = make_api_request("PUT", "/users/me/photo", files=files, headers=headers, timeout=30)
-        return response and response.status_code == 200
-    except Exception as e:
-        st.error(f"Error uploading photo: {str(e)}")
-        return False
-
-def delete_user_account():
-    """Delete user account"""
-    headers = get_auth_headers()
-    if not headers:
-        return False
-    
-    response = make_api_request("DELETE", "/users/me", headers=headers)
-    return response and response.status_code == 204
-
-# Check if user is logged in
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("Please log in to access your profile")
-    st.stop()
-
-# Initialize session state
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "profile"
-
-# Fetch data
-user_data = fetch_user_data()
-medications = fetch_medications()
-appointments = fetch_appointments()
-contacts = fetch_contacts()
-
-# Page header
-st.title("👤 User Profile")
-st.markdown("Manage your personal information and account settings")
-
-if not user_data:
-    st.error("Failed to load user data. Please try refreshing the page.")
-    st.stop()
-
-# Profile Header
-st.markdown('<div class="profile-container">', unsafe_allow_html=True)
-st.markdown('<div class="profile-header">', unsafe_allow_html=True)
-
-# Profile Image
-st.markdown('<div class="profile-image-container">', unsafe_allow_html=True)
-
-if user_data and user_data.get('profile_picture_url'):
-    try:
-        photo_url = user_data['profile_picture_url']
-        if photo_url.startswith('/'):
-            photo_url = f"{get_api_base_url()}{photo_url}"
-        
-        response = requests.get(photo_url, timeout=10)
-        if response.status_code == 200:
-            img = Image.open(io.BytesIO(response.content))
-            st.image(img, use_column_width=False, width=120, output_format='auto')
-        else:
-            st.markdown('<div class="profile-image-placeholder">👤</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.markdown('<div class="profile-image-placeholder">👤</div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="profile-image-placeholder">👤</div>', unsafe_allow_html=True)
-
-# Photo upload
-photo_file = st.file_uploader("Change profile photo", type=['jpg', 'jpeg', 'png'], key="profile_photo")
-if photo_file:
-    if upload_profile_photo(photo_file):
-        st.success("Profile photo updated successfully!")
-        st.rerun()
-    else:
-        st.error("Failed to upload profile photo")
-
-st.markdown('</div>', unsafe_allow_html=True)  # Close profile-image-container
-
-# Profile Info
-st.markdown('<div class="profile-info">', unsafe_allow_html=True)
-st.markdown(f'<h1 class="profile-name">{user_data.get("full_name", "User")}</h1>', unsafe_allow_html=True)
-st.markdown(f'<p class="profile-email">📧 {user_data.get("email", "")}</p>', unsafe_allow_html=True)
-
-# User Stats
-st.markdown('<div class="profile-stats">', unsafe_allow_html=True)
-
-col1, col2, col3, col4 = st.columns(4)
 with col1:
-    active_meds = len([m for m in medications if m.get('is_active', True)])
-    st.markdown(f"""
-    <div class="stat-card">
-        <h3 class="stat-number">{active_meds}</h3>
-        <p class="stat-label">Active Medications</p>
-    </div>
+    # Profile Photo Section
+    st.markdown("""
+    <div class="settings-card">
+        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">📸 Profile Photo</h3>
     """, unsafe_allow_html=True)
+    
+    pfp_url = user_data.get("profile_picture_url")
+    if pfp_url:
+        full_image_url = f"{API_BASE_URL}/{pfp_url.replace('\\', '/')}"
+        st.markdown(f"""
+        <div class="profile-photo-container">
+            <img src="{full_image_url}" class="profile-photo" alt="Profile Picture">
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="profile-photo-container">
+            <img src="https://via.placeholder.com/200x200/667eea/ffffff?text=👤" class="profile-photo" alt="Default Profile">
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Photo Upload
+    with st.expander("🔄 Change Photo", expanded=False):
+        uploaded_file = st.file_uploader(
+            "Choose a new profile photo", 
+            type=["png", "jpg", "jpeg"], 
+            help="Select a clear photo for better recognition"
+        )
+        if uploaded_file and st.button("📤 Upload Photo", use_container_width=True):
+            with st.spinner("Uploading your photo..."):
+                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                upload_response = requests.put(
+                    f"{API_BASE_URL}/users/me/photo", 
+                    headers=api._get_headers(), 
+                    files=files
+                )
+            if upload_response and upload_response.status_code == 200:
+                st.markdown("""
+                <div class="success-message">
+                    ✅ Photo updated successfully!
+                </div>
+                """, unsafe_allow_html=True)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.markdown("""
+                <div class="error-message">
+                    ❌ Failed to upload photo. Please try again.
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
-    st.markdown(f"""
-    <div class="stat-card">
-        <h3 class="stat-number">{len(appointments)}</h3>
-        <p class="stat-label">Appointments</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""
-    <div class="stat-card">
-        <h3 class="stat-number">{len(contacts)}</h3>
-        <p class="stat-label">Emergency Contacts</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    account_age = "Today"
-    if user_data.get('date_joined'):
-        account_age = "1 day"  # Simplified for demo
-    st.markdown(f"""
-    <div class="stat-card">
-        <h3 class="stat-number">{account_age}</h3>
-        <p class="stat-label">Account Age</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)  # Close profile-stats
-st.markdown('</div>', unsafe_allow_html=True)  # Close profile-info
-st.markdown('</div>', unsafe_allow_html=True)  # Close profile-header
-
-# Tab navigation
-tab1, tab2, tab3 = st.tabs(["📝 Profile Information", "⚙️ Preferences", "🚨 Account Settings"])
-
-with tab1:
-    st.markdown("### Personal Information")
-    
-    with st.form("profile_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            full_name = st.text_input(
-                "Full Name",
-                value=user_data.get('full_name', ''),
-                placeholder="Enter your full name"
-            )
-            email = st.text_input(
-                "Email Address",
-                value=user_data.get('email', ''),
-                disabled=True,
-                help="Email cannot be changed"
-            )
-        
-        with col2:
-            date_of_birth = st.date_input(
-                "Date of Birth",
-                value=datetime.strptime(user_data.get('date_of_birth', '2000-01-01'), '%Y-%m-%d').date() if user_data.get('date_of_birth') else date(2000, 1, 1),
-                max_value=date.today()
-            )
-            address = st.text_area(
-                "Address",
-                value=user_data.get('address', ''),
-                placeholder="Enter your complete address",
-                height=100
-            )
-        
-        submitted = st.form_submit_button("💾 Update Profile")
-        
-        if submitted:
-            if not full_name:
-                st.error("Please provide your full name")
-            else:
-                update_data = {
-                    "full_name": full_name,
-                    "date_of_birth": date_of_birth.isoformat(),
-                    "address": address
-                }
-                
-                success, result = update_user_profile(update_data)
-                if success:
-                    st.success("Profile updated successfully!")
-                    st.rerun()
-                else:
-                    st.error(f"Error updating profile: {result}")
-
-with tab2:
-    st.markdown("### Preferences")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 🕒 Time Format")
-        time_format = st.radio(
-            "Select your preferred time format:",
-            ["12-hour", "24-hour"],
-            index=0 if user_data.get('time_format', '12h') == '12h' else 1,
-            key="time_format"
-        )
-    
-    with col2:
-        st.markdown("#### 🎨 Theme Preference")
-        theme = st.radio(
-            "Select your preferred theme:",
-            ["Light", "Dark"],
-            index=0 if user_data.get('theme', 'light') == 'light' else 1,
-            key="theme"
-        )
-    
-    if st.button("💾 Save Preferences", key="save_prefs"):
-        prefs_data = {
-            "time_format": '12h' if time_format == '12-hour' else '24h',
-            "theme": theme.lower()
-        }
-        
-        success, result = update_user_profile(prefs_data)
-        if success:
-            st.success("Preferences saved successfully!")
-            # Update session state
-            st.session_state.time_format = prefs_data['time_format']
-            st.session_state.theme = prefs_data['theme']
-            st.rerun()
-        else:
-            st.error(f"Error saving preferences: {result}")
-
-with tab3:
-    st.markdown("### Change Password")
-    
-    with st.form("password_form"):
-        current_password = st.text_input("Current Password", type="password")
-        new_password = st.text_input("New Password", type="password")
-        confirm_password = st.text_input("Confirm New Password", type="password")
-        
-        submitted = st.form_submit_button("🔒 Change Password")
-        
-        if submitted:
-            if not current_password or not new_password or not confirm_password:
-                st.error("Please fill in all password fields")
-            elif new_password != confirm_password:
-                st.error("New passwords do not match")
-            elif len(new_password) < 6:
-                st.error("Password must be at least 6 characters long")
-            else:
-                password_data = {
-                    "current_password": current_password,
-                    "new_password": new_password
-                }
-                
-                success, result = update_user_password(password_data)
-                if success:
-                    st.success("Password changed successfully!")
-                else:
-                    st.error(f"Error changing password: {result}")
-    
-    st.markdown("---")
-    st.markdown("### 🚨 Danger Zone")
-    
+    # Personal Information Form
     st.markdown("""
-    <div class="danger-zone">
-        <h3>⚠️ Delete Account</h3>
-        <p>Permanently delete your account and all associated data. This action cannot be undone.</p>
-    </div>
+    <div class="settings-card">
+        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">📝 Personal Information</h3>
     """, unsafe_allow_html=True)
     
-    if st.button("🗑️ Delete My Account", type="secondary"):
-        st.warning("Are you sure you want to delete your account? This action cannot be undone.")
+    with st.form("update_profile_form"):
+        col_a, col_b = st.columns(2)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Yes, Delete My Account", type="primary"):
-                if delete_user_account():
-                    st.success("Account deleted successfully")
-                    # Clear session and redirect to login
-                    st.session_state.logged_in = False
-                    st.session_state.access_token = None
-                    st.session_state.user_email = None
+        with col_a:
+            full_name = st.text_input(
+                "Full Name *", 
+                value=user_data.get('full_name', ''),
+                placeholder="Enter your full name",
+                help="Your complete name as you'd like it to appear"
+            )
+        
+        with col_b:
+            dob_val = user_data.get('date_of_birth')
+            dob_default = None
+            if dob_val:
+                try: 
+                    dob_default = datetime.fromisoformat(dob_val).date()
+                except (ValueError, TypeError): 
+                    pass
+            dob = st.date_input(
+                "Date of Birth", 
+                value=dob_default, 
+                max_value=datetime.today().date(),
+                help="Your birth date for personalized experience"
+            )
+        
+        address = st.text_area(
+            "Address", 
+            value=user_data.get('address', ''),
+            placeholder="Enter your complete address",
+            help="Your residential address for emergency purposes",
+            height=100
+        )
+        
+        if st.form_submit_button("💾 Save Personal Info", use_container_width=True, type="primary"):
+            if not full_name:
+                st.markdown("""
+                <div class="error-message">
+                    ❌ Please provide your full name.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                with st.spinner("Saving your information..."):
+                    update_data = {
+                        "full_name": full_name,
+                        "date_of_birth": dob.isoformat() if dob else None,
+                        "address": address
+                    }
+                    update_response = api.put("/users/me", json=update_data)
+                if update_response and update_response.status_code == 200:
+                    st.markdown("""
+                    <div class="success-message">
+                        ✅ Personal information updated successfully!
+                    </div>
+                    """, unsafe_allow_html=True)
+                    time.sleep(2)
                     st.rerun()
                 else:
-                    st.error("Failed to delete account")
+                    st.markdown("""
+                    <div class="error-message">
+                        ❌ Failed to update information. Please try again.
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # App Preferences
+    st.markdown("""
+    <div class="settings-card">
+        <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">⚙️ App Preferences</h3>
+    """, unsafe_allow_html=True)
+    
+    with st.form("preferences_form"):
+        col_x, col_y = st.columns(2)
         
-        with col2:
-            if st.button("❌ Cancel", type="secondary"):
+        with col_x:
+            current_theme = user_data.get('theme', 'light')
+            theme = st.radio(
+                "🎨 App Theme",
+                options=["light", "dark"],
+                captions=["☀️ Light Mode - Bright and clear", "🌙 Dark Mode - Easy on eyes"],
+                index=0 if current_theme == 'light' else 1,
+                help="Choose the visual theme that suits your preference"
+            )
+        
+        with col_y:
+            current_time_format = user_data.get('time_format', '12h')
+            time_format = st.radio(
+                "⏰ Time Format",
+                options=["12h", "24h"],
+                captions=["12-hour (AM/PM)", "24-hour format"],
+                index=0 if current_time_format == '12h' else 1,
+                help="Choose how time is displayed throughout the app"
+            )
+        
+        if st.form_submit_button("💾 Save Preferences", use_container_width=True, type="primary"):
+            with st.spinner("Saving preferences..."):
+                pref_response = api.put("/users/me", json={
+                    "theme": theme,
+                    "time_format": time_format
+                })
+            if pref_response and pref_response.status_code == 200:
+                st.session_state['theme'] = theme
+                st.session_state['time_format'] = time_format
+                st.markdown("""
+                <div class="success-message">
+                    ✅ Preferences saved successfully!
+                </div>
+                """, unsafe_allow_html=True)
+                time.sleep(2)
                 st.rerun()
+            else:
+                st.markdown("""
+                <div class="error-message">
+                    ❌ Failed to save preferences. Please try again.
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown('</div>', unsafe_allow_html=True)  # Close profile-container
+# Password Change Section
+st.markdown("""
+<div class="settings-card">
+    <h3 style="margin: 0 0 1rem 0; color: #2c3e50;">🔒 Security Settings</h3>
+""", unsafe_allow_html=True)
+
+with st.form("update_password_form", clear_on_submit=True):
+    st.write("Change your account password:")
+    
+    col_p1, col_p2 = st.columns(2)
+    
+    with col_p1:
+        current_password = st.text_input(
+            "Current Password *", 
+            type="password",
+            placeholder="Enter current password",
+            help="Your current account password"
+        )
+    
+    with col_p2:
+        new_password = st.text_input(
+            "New Password *", 
+            type="password",
+            placeholder="Enter new password",
+            help="Choose a strong, unique password"
+        )
+    
+    confirm_new_password = st.text_input(
+        "Confirm New Password *", 
+        type="password",
+        placeholder="Confirm new password",
+        help="Re-enter your new password to confirm"
+    )
+    
+    if st.form_submit_button("🔑 Update Password", use_container_width=True, type="primary"):
+        if not all([current_password, new_password, confirm_new_password]):
+            st.markdown("""
+            <div class="error-message">
+                ❌ Please fill in all password fields.
+            </div>
+            """, unsafe_allow_html=True)
+        elif new_password != confirm_new_password:
+            st.markdown("""
+            <div class="error-message">
+                ❌ New passwords do not match.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            with st.spinner("Updating password..."):
+                pass_response = api.put("/users/me/password", json={
+                    "current_password": current_password, 
+                    "new_password": new_password
+                })
+            if pass_response and pass_response.status_code == 200:
+                st.markdown("""
+                <div class="success-message">
+                    ✅ Password updated successfully!
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                error_detail = "Incorrect current password or server error."
+                if pass_response is not None and pass_response.text:
+                    try: 
+                        error_detail = pass_response.json().get('detail', error_detail)
+                    except: 
+                        pass
+                st.markdown(f"""
+                <div class="error-message">
+                    ❌ Failed to update password: {error_detail}
+                </div>
+                """, unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# Account Deletion Section
+st.markdown("""
+<div class="danger-card">
+    <h3 style="margin: 0 0 1rem 0; color: white;">⚠️ Danger Zone</h3>
+    <p style="margin: 0 0 1rem 0; opacity: 0.9;">
+        This action cannot be undone. All your data will be permanently deleted.
+    </p>
+""", unsafe_allow_html=True)
+
+agree_to_delete = st.checkbox(
+    "I understand the consequences and wish to permanently delete my account",
+    key="delete_confirm"
+)
+
+if st.button("🗑️ Delete My Account", type="primary", disabled=not agree_to_delete, use_container_width=True):
+    with st.spinner("Deleting your account..."):
+        delete_response = api.delete("/users/me")
+    if delete_response and delete_response.status_code == 204:
+        st.markdown("""
+        <div class="success-message">
+            ✅ Account deleted successfully. Redirecting...
+        </div>
+        """, unsafe_allow_html=True)
+        time.sleep(3)
+        st.session_state.clear()
+        st.rerun()
+    else:
+        st.markdown("""
+        <div class="error-message">
+            ❌ Could not delete account. Please try again.
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # Footer
-st.markdown("---")
-st.markdown("<div style='text-align: center; color: #666;'>Health Companion - Senior Citizen Care App</div>", unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align: center; margin-top: 3rem; color: #6c757d;">
+    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 2rem 0;">
+    <p>🩺 Health Companion • Your trusted medical assistant</p>
+</div>
+""", unsafe_allow_html=True)
