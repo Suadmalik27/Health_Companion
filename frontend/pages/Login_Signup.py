@@ -1,5 +1,10 @@
 import streamlit as st
 import requests
+ 
+from auth_utils import check_login
+
+check_login()
+
 
 API_BASE_URL = "https://health-companion-backend-44ug.onrender.com"
 
