@@ -135,6 +135,9 @@ def delete_appointment(appointment_id):
 # ---------------- Auth gate ----------------
 if not st.session_state.get("logged_in", False) or not st.session_state.get("token"):
     st.warning("🔒 Please log in to access appointments.")
+    if st.button("Login"):
+        st.session_state["page"] = "login"
+        st.rerun()
     st.stop()
 
 # ---------------- State init ----------------
