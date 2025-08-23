@@ -1,470 +1,460 @@
-# frontend/pages/Dashboard.py (Fixed Version)
-
+# frontend/pages/Dashboard.py (Fixed Timing + Dark Mode + API URL)
 import streamlit as st
 import requests
-from datetime import datetime, date, time, timedelta
-import pytz
-from PIL import Image
-import io
-import base64
+from datetime import datetime, date, timedelta
+import time
 import os
- 
-# Page configuration
-st.set_page_config(
-    page_title="Dashboard - Health Companion",
-    page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
-# Get API URL from secrets or use default
+# Set page config first
+st.set_page_config(page_title="Dashboard", layout="wide")
+
+# --- CONFIGURATION & API CLIENT ---
+# Use the same logic as main app for API URL
 API_BASE_URL = st.secrets.get("API_BASE_URL", "https://health-companion-backend-44ug.onrender.com")
 
-# Custom CSS for styling
-def local_css():
-    st.markdown("""
-    <style>
-    .dashboard-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 10px;
-        color: white;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .card {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1.5rem;
-        transition: transform 0.3s ease;
-    }
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-    }
-    .medication-card, .appointment-card, .tip-card {
-        border-left: 4px solid;
-        padding-left: 1rem;
-    }
-    .medication-card {
-        border-left-color: #4CAF50;
-    }
-    .appointment-card {
-        border-left-color: #2196F3;
-    }
-    .tip-card {
-        border-left-color: #FF9800;
-    }
-    .sos-button {
-        background: linear-gradient(135deg, #ff4b4b 0%, #c00000 100%);
-        color: white;
-        padding: 1rem 2rem;
-        border-radius: 50px;
-        font-weight: bold;
-        text-align: center;
-        margin: 1rem 0;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    .sos-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
-    }
-    .time-display {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: white;
-    }
-    .date-display {
-        font-size: 1.2rem;
-        color: rgba(255, 255, 255, 0.8);
-    }
-    .greeting {
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-    }
-    .section-title {
-        border-bottom: 2px solid #667eea;
-        padding-bottom: 0.5rem;
-        margin-bottom: 1rem;
-        color: #333;
-    }
-    .empty-state {
-        text-align: center;
-        padding: 2rem;
-        color: #888;
-    }
-    .empty-state i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        display: block;
-    }
-    .profile-img {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid white;
-    }
-    .profile-placeholder {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        border: 3px solid white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-local_css()
-
-def get_auth_headers():
-    """Get authorization headers with access token"""
-    if 'access_token' not in st.session_state:
-        return None
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
-def fetch_user_data():
-    """Fetch current user's data"""
-    headers = get_auth_headers()
-    if not headers:
-        return None
+# --- API CLIENT CLASS ---
+class ApiClient:
+    def __init__(self, base_url):
+        self.base_url = base_url
     
-    try:
-        response = requests.get(f"{API_BASE_URL}/users/me", headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
-
-def fetch_medications():
-    """Fetch user's medications"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
+    def _get_headers(self):
+        token = st.session_state.get("token", None)
+        if token: 
+            return {"Authorization": f"Bearer {token}"}
+        return {}
     
-    try:
-        response = requests.get(f"{API_BASE_URL}/medications/", headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
-
-def fetch_appointments():
-    """Fetch user's appointments for today"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
+    def _make_request(self, method, endpoint, **kwargs):
+        try:
+            response = requests.request(
+                method, 
+                f"{self.base_url}{endpoint}", 
+                headers=self._get_headers(), 
+                timeout=10, 
+                **kwargs
+            )
+            return response
+        except requests.exceptions.RequestException as e:
+            st.error(f"Connection Error: Could not connect to backend. Error: {str(e)}")
+            return None
     
-    try:
-        today = date.today().isoformat()
-        response = requests.get(
-            f"{API_BASE_URL}/appointments/?start_date={today}&end_date={today}", 
-            headers=headers
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
-
-def fetch_random_tip():
-    """Fetch a random health tip"""
-    try:
-        response = requests.get(f"{API_BASE_URL}/tips/random")
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except:
-        return None
-
-def log_medication_taken(medication_id):
-    """Log that a medication was taken"""
-    headers = get_auth_headers()
-    if not headers:
-        return False
+    def get(self, endpoint, params=None): 
+        return self._make_request("GET", endpoint, params=params)
     
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/medications/{medication_id}/log", 
-            headers=headers
-        )
-        return response.status_code == 201
-    except:
-        return False
+    def post(self, endpoint, json=None): 
+        return self._make_request("POST", endpoint, json=json)
 
-def get_medication_log():
-    """Get today's medication log"""
-    headers = get_auth_headers()
-    if not headers:
-        return []
-    
-    try:
-        today = date.today().isoformat()
-        response = requests.get(
-            f"{API_BASE_URL}/medications/log/{today}", 
-            headers=headers
-        )
-        if response.status_code == 200:
-            return response.json()
-        return []
-    except:
-        return []
+api = ApiClient(API_BASE_URL)
 
-def get_primary_contact():
-    """Get primary emergency contact"""
-    headers = get_auth_headers()
-    if not headers:
-        return None
-    
-    try:
-        response = requests.get(f"{API_BASE_URL}/contacts/", headers=headers)
-        if response.status_code == 200 and response.json():
-            return response.json()[0]  # Return first contact
-        return None
-    except:
-        return None
-
-def make_sos_call():
-    """Initiate SOS call to primary contact"""
-    contact = get_primary_contact()
-    if contact:
-        st.success(f"🆘 SOS alert sent to {contact['name']} ({contact['phone_number']})")
-        # In a real app, this would trigger an actual call/SMS
-    else:
-        st.warning("No emergency contacts found. Please add contacts in the Contacts page.")
-
-# Check if user is logged in
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("Please log in to access the dashboard")
+# --- SECURITY CHECK ---
+if 'token' not in st.session_state:
+    st.warning("Please login first to access this page.")
     st.stop()
 
-# Fetch data
-user_data = fetch_user_data()
-medications = fetch_medications()
-today_appointments = fetch_appointments()
-health_tip = fetch_random_tip()
-medication_log = get_medication_log()
-primary_contact = get_primary_contact()
+# --- DARK MODE COMPATIBLE STYLING ---
+st.markdown("""
+<style>
+/* Dark Mode Compatible Styling */
+.card {
+    background-color: var(--card-background, #FFFFFF) !important;
+    color: var(--card-text, #333333) !important;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease-in-out;
+    height: 100%;
+    border: 1px solid var(--card-border, #e0e0e0);
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+.card h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: var(--card-title, #333333) !important;
+}
+.card p {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 0;
+    color: var(--card-value, #333333) !important;
+}
+.card-green p { color: var(--success-color, #2e7d32) !important; }
+.card-blue p { color: var(--info-color, #0277bd) !important; }
+.card-orange p { color: var(--warning-color, #ef6c00) !important; }
+.card-tip p {
+    font-size: 1rem;
+    font-weight: normal;
+    color: var(--text-color, #555555) !important;
+    line-height: 1.4;
+}
+.live-clock {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color, #0068c9) !important;
+    text-align: right;
+}
+.live-date {
+    font-size: 1rem;
+    color: var(--text-color, #555555) !important;
+    text-align: right;
+}
+.emergency-action {
+    background-color: var(--danger-color, #ff4444) !important;
+    color: white !important;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+}
+.emergency-action:hover {
+    background-color: var(--danger-hover, #cc0000) !important;
+    transform: translateY(-2px);
+}
 
-# Get current time based on user preference
-time_format = user_data.get('time_format', '12h') if user_data else '12h'
-current_time = datetime.now()
-if time_format == '12h':
-    time_str = current_time.strftime("%I:%M %p")
-else:
-    time_str = current_time.strftime("%H:%M")
-date_str = current_time.strftime("%A, %B %d, %Y")
+/* Ensure text visibility in dark mode */
+h1, h2, h3, h4, h5, h6, p, span, div, .stMarkdown {
+    color: var(--text-color, #333333) !important;
+}
 
-# Dashboard Header
-st.markdown('<div class="dashboard-header">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([2, 1, 1])
+/* Container styling */
+.stContainer {
+    background-color: var(--background-color, #ffffff) !important;
+    color: var(--text-color, #333333) !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-with col1:
-    if user_data:
-        greeting = "Good "
-        hour = current_time.hour
-        if 5 <= hour < 12:
-            greeting += "Morning"
-        elif 12 <= hour < 17:
-            greeting += "Afternoon"
-        elif 17 <= hour < 21:
-            greeting += "Evening"
-        else:
-            greeting += "Night"
-        
-        st.markdown(f'<div class="greeting">{greeting}, {user_data.get("full_name", "User")}!</div>', unsafe_allow_html=True)
+# --- LIVE CLOCK COMPONENT ---
+def create_live_clock():
+    current_time = datetime.now().strftime("%I:%M:%S %p")
+    current_date = datetime.now().strftime("%A, %B %d, %Y")
     
-    st.markdown(f'<div class="time-display">{time_str}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="date-display">{date_str}</div>', unsafe_allow_html=True)
+    clock_html = f"""
+        <div style="text-align: right; margin-bottom: 1rem;">
+            <div class="live-clock">{current_time}</div>
+            <div class="live-date">{current_date}</div>
+        </div>
+    """
+    
+    clock_placeholder = st.empty()
+    clock_placeholder.markdown(clock_html, unsafe_allow_html=True)
+    
+    return clock_placeholder
 
-with col3:
-    # Profile picture handling - FIXED
-    if user_data and user_data.get('profile_picture_url'):
-        try:
-            # Display profile picture
-            photo_url = user_data['profile_picture_url']
-            if photo_url.startswith('/'):
-                photo_url = f"{API_BASE_URL}{photo_url}"
-            
-            response = requests.get(photo_url)
-            if response.status_code == 200:
-                img = Image.open(io.BytesIO(response.content))
-                st.image(img, use_column_width=False, width=80, output_format='auto')
+# --- DATA LOADING FUNCTIONS ---
+def load_user_profile():
+    """Load user profile data"""
+    response = api.get("/users/me")
+    if response and response.status_code == 200:
+        return response.json()
+    return None
+
+def load_appointments():
+    """Load appointments for the next 7 days"""
+    today = date.today().isoformat()
+    next_week = (date.today() + timedelta(days=7)).isoformat()
+    
+    response = api.get(f"/appointments/?start_date={today}&end_date={next_week}")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
+
+def load_medications():
+    """Load user medications"""
+    response = api.get("/medications/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
+
+def load_health_tip():
+    """Load random health tip"""
+    response = api.get("/tips/random")
+    if response and response.status_code == 200:
+        return response.json()
+    return None
+
+def load_medication_log():
+    """Load medication log for today"""
+    today = date.today().isoformat()
+    response = api.get(f"/medications/log/{today}")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
+
+def load_contacts():
+    """Load emergency contacts"""
+    response = api.get("/contacts/")
+    if response and response.status_code == 200:
+        return response.json()
+    return []
+
+# --- TIME FORMATTING FUNCTION ---
+def format_time(time_str, time_format="12h"):
+    """Convert time string to proper format"""
+    try:
+        if isinstance(time_str, str):
+            # Handle different time string formats
+            if ':' in time_str:
+                time_obj = datetime.strptime(time_str, '%H:%M:%S').time()
             else:
-                # Show placeholder if image can't be loaded
-                st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
-        except Exception as e:
-            # Show placeholder if there's any error
-            st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
+                time_obj = datetime.strptime(time_str, '%H:%M:%S.%f').time()
+            
+            if time_format == "12h":
+                return time_obj.strftime('%I:%M %p')
+            else:
+                return time_obj.strftime('%H:%M')
+        return time_str
+    except (ValueError, TypeError):
+        return time_str
+
+# --- CALLBACK FUNCTION FOR BUTTONS ---
+def handle_med_taken(med_id):
+    with st.spinner("Logging..."):
+        response = api.post(f"/medications/{med_id}/log")
+    if response and response.status_code in [201, 200]:
+        st.toast("Medication logged successfully! ✅")
+        # Clear cache to refresh data
+        st.cache_data.clear()
+        st.rerun()
     else:
-        # Show placeholder if no profile picture
-        st.markdown('<div class="profile-placeholder">👤</div>', unsafe_allow_html=True)
+        st.error("Failed to log medication.")
+
+# --- EMERGENCY ACTION FUNCTIONS ---
+def call_emergency(phone_number):
+    st.markdown(f'<a href="tel:{phone_number}" style="display: none;" id="call-link"></a>', unsafe_allow_html=True)
+    st.markdown('<script>document.getElementById("call-link").click();</script>', unsafe_allow_html=True)
+    st.toast(f"Calling {phone_number}...")
+
+def sms_emergency(phone_number):
+    st.markdown(f'<a href="sms:{phone_number}" style="display: none;" id="sms-link"></a>', unsafe_allow_html=True)
+    st.markdown('<script>document.getElementById("sms-link").click();</script>', unsafe_allow_html=True)
+    st.toast(f"Sending SMS to {phone_number}...")
+
+def alert_all_contacts(contacts):
+    for contact in contacts:
+        phone = contact.get('phone_number', '')
+        name = contact.get('name', '')
+        if phone:
+            # This would ideally send an actual alert via SMS API
+            st.toast(f"Alert sent to {name} at {phone}")
+    st.success("Alerts sent to all emergency contacts!")
+
+# --- MAIN DASHBOARD UI ---
+def main_dashboard():
+    # Create live clock
+    clock_placeholder = create_live_clock()
     
-    if st.button("Logout", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.access_token = None
-        st.session_state.user_email = None
+    # Load all data
+    with st.spinner("Loading your dashboard..."):
+        user_profile = load_user_profile()
+        all_appointments = load_appointments() or []
+        all_medications = load_medications() or []
+        health_tip = load_health_tip()
+        taken_med_ids = load_medication_log() or []
+        emergency_contacts = load_contacts() or []
+    
+    if not user_profile:
+        st.error("Could not load your profile data. Please try refreshing.")
+        st.stop()
+    
+    # Update live clock every second
+    if st.session_state.get('clock_running', True):
+        while st.session_state.clock_running:
+            current_time = datetime.now().strftime("%I:%M:%S %p")
+            current_date = datetime.now().strftime("%A, %B %d, %Y")
+            
+            clock_html = f"""
+                <div style="text-align: right; margin-bottom: 1rem;">
+                    <div class="live-clock">{current_time}</div>
+                    <div class="live-date">{current_date}</div>
+                </div>
+            """
+            
+            clock_placeholder.markdown(clock_html, unsafe_allow_html=True)
+            time.sleep(1)
+    
+    # Personalized Welcome Message
+    user_name = user_profile.get('full_name', 'User').split(' ')[0] if user_profile else 'User'
+    st.header(f"👋 Welcome Back, {user_name}!")
+    st.write(f"Here's your summary for **{date.today().strftime('%A, %d %B %Y')}**.")
+    
+    # Process data
+    today = date.today()
+    time_format_pref = user_profile.get("time_format", "12h")
+    
+    # Filter today's appointments
+    today_appointments = []
+    for app in all_appointments:
+        try:
+            if 'appointment_datetime' in app:
+                app_datetime = datetime.fromisoformat(app['appointment_datetime'].replace('Z', '+00:00'))
+                if app_datetime.date() == today:
+                    today_appointments.append(app)
+        except (ValueError, TypeError):
+            continue
+    
+    # Filter active medications for today
+    active_medications = [med for med in all_medications if med.get('is_active', True)]
+    
+    # Track taken medications
+    st.session_state.taken_med_ids = taken_med_ids
+    
+    # --- "DAY SUMMARY" CARD SECTION ---
+    st.subheader("Today's Summary")
+    s_col1, s_col2, s_col3 = st.columns(3)
+    
+    with s_col1:
+        total_meds = len(active_medications)
+        meds_taken_count = len([mid for mid in taken_med_ids if mid in [m.get('id') for m in active_medications]])
+        st.markdown(f"""
+        <div class="card card-green">
+            <h3>✅ Medicines Taken</h3>
+            <p>{meds_taken_count} / {total_meds}</p>
+        </div>""", unsafe_allow_html=True)
+    
+    with s_col2:
+        st.markdown(f"""
+        <div class="card card-blue">
+            <h3>🗓️ Appointments Today</h3>
+            <p>{len(today_appointments)}</p>
+        </div>""", unsafe_allow_html=True)
+    
+    with s_col3:
+        tip_content = health_tip['content'] if health_tip else "Stay hydrated and take your medications on time."
+        tip_category = health_tip['category'] if health_tip else "Health Tip"
+        st.markdown(f"""
+        <div class="card card-orange card-tip">
+            <h3>💡 {tip_category}</h3>
+            <p>{tip_content}</p>
+        </div>""", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # --- QUICK EMERGENCY ACTIONS ---
+    if emergency_contacts:
+        primary_contact = emergency_contacts[0]
+        st.subheader("🚨 Quick Emergency Actions")
+        
+        em_col1, em_col2, em_col3 = st.columns(3)
+        
+        with em_col1:
+            if st.button(f"📞 Call {primary_contact.get('name', 'Primary Contact')}", 
+                        use_container_width=True, 
+                        type="primary",
+                        on_click=call_emergency, 
+                        args=(primary_contact.get('phone_number', ''),)):
+                pass
+        
+        with em_col2:
+            if st.button(f"💬 SMS {primary_contact.get('name', 'Primary Contact')}", 
+                        use_container_width=True,
+                        on_click=sms_emergency, 
+                        args=(primary_contact.get('phone_number', ''),)):
+                pass
+        
+        with em_col3:
+            if st.button("📢 Alert All Contacts", 
+                        use_container_width=True,
+                        on_click=alert_all_contacts, 
+                        args=(emergency_contacts,)):
+                pass
+    
+    # --- MAIN CONTENT AREA ---
+    d_col1, d_col2 = st.columns(2, gap="large")
+    
+    with d_col1:
+        st.subheader("Today's Medications")
+        if not active_medications:
+            st.info("No medications scheduled today.")
+        else:
+            for med in active_medications:
+                is_taken = med.get('id') in taken_med_ids
+                
+                with st.container(border=True):
+                    m_col1, m_col2 = st.columns([1, 4])
+                    
+                    with m_col1:
+                        pfp_url = med.get("photo_url")
+                        if pfp_url: 
+                            # Fix URL formatting
+                            cleaned_url = pfp_url.replace('\\', '/')
+                            st.image(f"{API_BASE_URL}/{cleaned_url}", width=70)
+                        else: 
+                            st.image("https://via.placeholder.com/70x70.png?text=💊", width=70)
+                    
+                    with m_col2:
+                        st.markdown(f"**{med.get('name', 'Unknown Medication')}**")
+                        # FIXED: Use proper time formatting function
+                        med_time = format_time(med.get('timing'), time_format_pref)
+                        st.caption(f"{med.get('dosage', '')} - Due at {med_time}")
+                    
+                    st.button(
+                        "✅ Taken" if is_taken else "Mark as Taken", 
+                        key=f"med_taken_{med.get('id')}",
+                        on_click=handle_med_taken, 
+                        args=(med.get('id'),), 
+                        disabled=is_taken,
+                        use_container_width=True, 
+                        type="primary" if not is_taken else "secondary"
+                    )
+    
+    with d_col2:
+        st.subheader("Today's Appointments")
+        if not today_appointments:
+            st.info("No appointments today.")
+        else:
+            for app in today_appointments:
+                with st.container(border=True):
+                    a_col1, a_col2 = st.columns([1, 4])
+                    
+                    with a_col1:
+                        pfp_url = app.get("photo_url")
+                        if pfp_url: 
+                            # Fix URL formatting
+                            cleaned_url = pfp_url.replace('\\', '/')
+                            st.image(f"{API_BASE_URL}/{cleaned_url}", width=70)
+                        else: 
+                            st.image("https://via.placeholder.com/70x70.png?text=👨‍⚕️", width=70)
+                    
+                    with a_col2:
+                        st.markdown(f"**{app.get('doctor_name', 'Unknown Doctor')}**")
+                        try:
+                            app_time = datetime.fromisoformat(
+                                app['appointment_datetime'].replace('Z', '+00:00')
+                            )
+                            # FIXED: Use proper time formatting
+                            if time_format_pref == "12h":
+                                formatted_time = app_time.strftime('%I:%M %p')
+                            else:
+                                formatted_time = app_time.strftime('%H:%M')
+                        except:
+                            formatted_time = "Unknown time"
+                        
+                        st.caption(f"{app.get('purpose', 'Check-up')} at {formatted_time}")
+                        st.caption(f"📍 {app.get('location', 'Not specified')}")
+                    
+                    if st.button("View Details", key=f"view_app_{app.get('id')}", use_container_width=True):
+                        st.session_state.current_page = "Appointments"
+                        st.rerun()
+    
+    # Add refresh button
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        st.cache_data.clear()
         st.rerun()
 
-st.markdown('</div>', unsafe_allow_html=True)  # Close dashboard-header
+# Initialize clock state
+if 'clock_running' not in st.session_state:
+    st.session_state.clock_running = True
 
-# SOS Emergency Button
-if primary_contact:
-    st.markdown(f"""
-    <div class="sos-button" onclick="alert('SOS activated! Calling {primary_contact['name']} at {primary_contact['phone_number']}')">
-        🆘 EMERGENCY SOS - CALL {primary_contact['name'].upper()}
-    </div>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-    <div class="sos-button" onclick="alert('Please add emergency contacts first')">
-        🆘 EMERGENCY SOS - ADD CONTACTS FIRST
-    </div>
-    """, unsafe_allow_html=True)
-
-# Main Content
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Today's Medications
-    st.markdown("### 💊 Today's Medications")
-    
-    if medications:
-        active_meds = [med for med in medications if med.get('is_active', True)]
-        taken_meds = set(medication_log)
-        
-        for med in active_meds:
-            # Handle different time formats from API
-            if isinstance(med['timing'], str):
-                if 'T' in med['timing']:
-                    # ISO format with date and time
-                    med_time = datetime.fromisoformat(med['timing'].replace('Z', '+00:00')).time()
-                else:
-                    # Just time string
-                    med_time = datetime.strptime(med['timing'], "%H:%M:%S").time()
-            else:
-                med_time = med['timing']
-                
-            is_taken = med['id'] in taken_meds
-            is_upcoming = datetime.now().time() < med_time
-            
-            med_col1, med_col2 = st.columns([3, 1])
-            
-            with med_col1:
-                status_icon = "✅" if is_taken else "⏰" if is_upcoming else "❌"
-                st.markdown(f"""
-                <div class="card medication-card">
-                    <b>{med['name']}</b> - {med['dosage']}<br>
-                    <small>Time: {med_time.strftime('%I:%M %p') if time_format == '12h' else med_time.strftime('%H:%M')}</small>
-                    <div>{status_icon} {'Taken' if is_taken else 'Upcoming' if is_upcoming else 'Missed'}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with med_col2:
-                if not is_taken and is_upcoming:
-                    if st.button("Mark Taken", key=f"med_{med['id']}"):
-                        if log_medication_taken(med['id']):
-                            st.success(f"Marked {med['name']} as taken")
-                            st.rerun()
-    else:
-        st.markdown("""
-        <div class="empty-state">
-            <i>💊</i>
-            <p>No medications scheduled for today</p>
-            <p>Add medications in the Medications page</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Today's Appointments
-    st.markdown("### 📅 Today's Appointments")
-    
-    if today_appointments:
-        for appointment in today_appointments:
-            # Parse appointment datetime
-            appt_datetime = appointment['appointment_datetime']
-            if 'T' in appt_datetime:
-                appt_time = datetime.fromisoformat(appt_datetime.replace('Z', '+00:00'))
-            else:
-                appt_time = datetime.strptime(appt_datetime, "%Y-%m-%dT%H:%M:%S")
-                
-            formatted_time = appt_time.strftime('%I:%M %p') if time_format == '12h' else appt_time.strftime('%H:%M')
-            
-            st.markdown(f"""
-            <div class="card appointment-card">
-                <b>Dr. {appointment['doctor_name']}</b><br>
-                <small>Time: {formatted_time}</small><br>
-                <small>Purpose: {appointment.get('purpose', 'General checkup')}</small>
-            </div>
-            """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="empty-state">
-            <i>📅</i>
-            <p>No appointments scheduled for today</p>
-            <p>Schedule appointments in the Appointments page</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-with col2:
-    # Daily Health Tip
-    st.markdown("### 💡 Daily Health Tip")
-    
-    if health_tip:
-        st.markdown(f"""
-        <div class="card tip-card">
-            <div class="section-title">Health Wisdom</div>
-            <p>{health_tip['content']}</p>
-            <small>Category: {health_tip.get('category', 'General')}</small>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="empty-state">
-            <i>💡</i>
-            <p>No health tips available</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Quick Stats
-    st.markdown("### 📊 Quick Stats")
-    
-    stats_card = f"""
-    <div class="card">
-        <div class="section-title">Today's Summary</div>
-        <p>💊 Medications: {len([m for m in medications if m.get('is_active', True)])} scheduled, {len(medication_log)} taken</p>
-        <p>📅 Appointments: {len(today_appointments)} today</p>
-        <p>👥 Emergency Contacts: {len([c for c in [primary_contact] if c]) if primary_contact else 0} set up</p>
-    </div>
-    """
-    st.markdown(stats_card, unsafe_allow_html=True)
-    
-    # Quick Actions
-    st.markdown("### ⚡ Quick Actions")
-    
-    action_col1, action_col2 = st.columns(2)
-    
-    with action_col1:
-        if st.button("Add Medication", use_container_width=True):
-            st.switch_page("pages/Medications.py")
-        if st.button("Schedule Appointment", use_container_width=True):
-            st.switch_page("pages/Appointments.py")
-    
-    with action_col2:
-        if st.button("Add Contact", use_container_width=True):
-            st.switch_page("pages/Contacts.py")
-        if st.button("View Profile", use_container_width=True):
-            st.switch_page("pages/Profile.py")
-
-# Footer
-st.markdown("---")
-st.markdown("<div style='text-align: center; color: #666;'>Health Companion - Senior Citizen Care App</div>", unsafe_allow_html=True)
+# Run the dashboard
+try:
+    main_dashboard()
+except Exception as e:
+    st.error(f"Error loading dashboard: {str(e)}")
+    st.info("Please try refreshing the page or contact support if the issue persists.")
