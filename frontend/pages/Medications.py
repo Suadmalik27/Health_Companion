@@ -16,16 +16,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get API base URL directly
+# # Get API base URL directly
 def get_api_base_url():
-    """Get the API base URL from secrets, environment variables, or use default"""
-    try:
-        return st.secrets["API_BASE_URL1"]
-    except:
-        try:
-            return os.environ.get("https://health-companion-backend-44ug.onrender.com")
-        except:
-            return "https://health-companion-backend-44ug.onrender.com"
+    """Always return the fixed API base URL"""
+    return "https://health-companion-backend-44ug.onrender.com"
+#         try:
+#             return os.environ.get("https://health-companion-backend-44ug.onrender.com")
+#         except:
+#             return "https://health-companion-backend-44ug.onrender.com"
+API_BASE_URL="https://health-companion-backend-44ug.onrender.com"
 
 def get_auth_headers():
     """Get authorization headers with access token"""
