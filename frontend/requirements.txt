@@ -1,5 +1,0 @@
-# /frontend/requirements.txt (Final Clean Version for Render)
-
-streamlit==1.33.0
-requests==2.31.0
-streamlit-calendar==1.4.0
