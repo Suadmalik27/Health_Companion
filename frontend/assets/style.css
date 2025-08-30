@@ -1,0 +1,159 @@
+/* frontend/assets/style.css (VERSION 2.0 - CENTRALIZED STYLESHEET) */
+
+/* --- Font & Global Styles --- */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+* {
+    font-family: 'Roboto', sans-serif;
+}
+
+/* --- Hide Streamlit's default elements for a cleaner look --- */
+header, footer { 
+    visibility: hidden !important; 
+}
+
+/* --- Main Content Card Styling (Used across all pages) --- */
+ 
+.content-card:hover {
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px);
+}
+
+/* --- Form Container Styling (for Login, Register, etc.) --- */
+div[data-testid="stForm"] {
+    background: #FFFFFF;
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+/* --- Dashboard Specific Styles --- */
+
+/* Metric Card Styling (Pending Meds, Appointments) */
+.metric-card h3 {
+    font-size: 1.2rem; 
+    font-weight: 500; 
+    color: #333;
+    margin: 0 0 0.5rem 0; 
+    text-align: center;
+}
+.metric-card p {
+    font-size: 3.5rem; 
+    font-weight: 700; 
+    color: #000;
+    margin: 0; 
+    text-align: center; 
+    line-height: 1.2;
+}
+
+/* Emergency SOS Card Styling */
+.emergency-card { 
+    background: #D32F2F; 
+    border-color: #B71C1C; 
+    color: white;
+    text-align: center;
+}
+.emergency-card h3 {
+    color: white;
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+}
+.emergency-card .sos-button a {
+    display: block; 
+    background-color: white; 
+    color: #D32F2F !important;
+    font-size: 1.5rem; 
+    font-weight: 700; 
+    text-align: center;
+    padding: 1rem; 
+    border-radius: 10px; 
+    text-decoration: none;
+    transition: background-color 0.2s, transform 0.2s;
+}
+.emergency-card .sos-button a:hover { 
+    background-color: #FFEBEE; 
+    transform: scale(1.03); 
+}
+
+/* --- General Component Styles --- */
+
+/* Toggle Switch (for 'Mark as Taken') */
+.stCheckbox {
+    transform: scale(1.6);
+}
+
+/* List Item Styling (for Meds, Appts, Contacts) */
+.list-item {
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    padding: 1.2rem 0.5rem; 
+    border-bottom: 1px solid #EEEEEE;
+}
+.list-item:last-child { 
+    border-bottom: none; 
+}
+.list-item-info b { 
+    font-size: 1.1rem; 
+}
+.list-item-info small { 
+    font-size: 0.9rem; 
+    color: #616161; 
+}
+.list-item-icon { 
+    font-size: 1.5rem; 
+    margin-right: 1rem; 
+}
+
+/* Health Tip Card Styling */
+.tip-card {
+    background-color: #E3F2FD;
+    border-left: 6px solid #1E88E5;
+    padding: 1.5rem;
+    border-radius: 8px;
+}
+.tip-card p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+/* --- Sidebar Styling --- */
+[data-testid="stSidebar"] {
+    background-color: #F8F9FA;
+}
+[data-testid="stSidebar"] h2 { /* Custom title if you add one */
+    font-size: 1.5rem;
+    color: #000;
+    padding-top: 1rem;
+}
+[data-testid="stSidebar"] .st-emotion-cache-17lnt27 a {
+    padding: 10px 15px !important;
+    border-radius: 8px;
+    transition: background-color 0.2s, color 0.2s;
+    font-size: 1.05rem;
+}
+[data-testid="stSidebar"] .st-emotion-cache-17lnt27 a:hover {
+    background-color: #E9ECEF;
+    color: #000;
+}
+[data-testid="stSidebar"] .st-emotion-cache-17lnt27 a[data-testid="stPageLink-Current"] {
+    background-color: #1E88E5;
+    color: white;
+}
+[data-testid="stSidebar"] .st-emotion-cache-17lnt27 a[data-testid="stPageLink-Current"]:hover {
+    background-color: #1565C0;
+    color: white;
+}
+.sidebar-divider {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border-top: 1px solid #DEE2E6;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    div[data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+        gap: 20px !important;
+    }
+}
