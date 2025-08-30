@@ -4,7 +4,7 @@ import requests
 from typing import List, Dict, Any
 
 # Define the base URL of your FastAPI backend
-BASE_URL = "http://127.0.0.1:8080/api/v1"
+BASE_URL = "https://health-companion-backend-44ug.onrender.com/api/v1"
 TOKEN_COOKIE_NAME = "senior_citizen_support_token"
 
 # --- AUTHENTICATION & USER MANAGEMENT ---
@@ -225,4 +225,5 @@ def delete_health_tip(token: str, tip_id: int) -> tuple[bool, str]:
         if response.status_code == 200: return True, "Tip deleted successfully."
         else: return False, response.json().get("detail", "Failed to delete tip.")
     except requests.RequestException: return False, "Server communication error."
+
 
