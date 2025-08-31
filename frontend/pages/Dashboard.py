@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import pytz
 from datetime import timedelta
+import os
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -208,8 +209,14 @@ with st.sidebar:
     st.title("❤️ Wellness Hub")
     st.markdown("---")
     
-    # Navigation options
-    st.page_link("Dashboard.py", label="🏠 Dashboard", icon="📊")
+    # Navigation options - FIXED: Use proper page paths
+    # For main app file, use the actual file name (usually app.py or main.py)
+    # For pages, use the correct path relative to main app
+    
+    # If your main app file is Home.py:
+    st.page_link("Home.py", label="🏠 Dashboard", icon="📊")
+    
+    # If your pages are in a pages directory:
     st.page_link("pages/Medications.py", label="💊 Medications", icon="💊")
     st.page_link("pages/Appointments.py", label="🗓️ Appointments", icon="🗓️")
     st.page_link("pages/Emergency.py", label="🆘 Emergency", icon="🆘")
@@ -224,8 +231,6 @@ with st.sidebar:
         # Here you would typically clear session state or cookies
 
 # --- SAMPLE DATA ---
-# In a real application, this would come from a database or API
-
 def get_current_time():
     """Get current time in a readable format"""
     return datetime.datetime.now().strftime("%I:%M %p")
@@ -284,7 +289,6 @@ with col1:
     st.markdown('<div class="card-title">💊 Today\'s Medications</div>', unsafe_allow_html=True)
     
     medications = get_todays_medications()
-    current_time = get_current_time()
     
     for med in medications:
         # Determine if medication is upcoming or past
