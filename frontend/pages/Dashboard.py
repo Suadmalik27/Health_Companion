@@ -1,317 +1,362 @@
 import streamlit as st
-import datetime
-import pytz
-from datetime import timedelta
 import requests
 import json
+from datetime import datetime, timedelta
+import pytz
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-# --- PAGE CONFIGURATION ---
+# Set page configuration
 st.set_page_config(
-    page_title="Wellness Hub Dashboard",
-    page_icon="❤️",
+    page_title="Health Dashboard",
+    page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM CSS STYLING ---
+# Custom CSS for styling
 st.markdown("""
 <style>
-    /* Your existing CSS styles here */
-    .main { padding: 2rem; background-color: #f8fafc; }
-    .header { text-align: center; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-    .header h1 { font-size: 2.8rem !important; font-weight: 700; margin-bottom: 0.5rem; }
-    .header p { font-size: 1.4rem !important; margin: 0; }
-    .card { background-color: white; border-radius: 15px; padding: 1.8rem; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08); margin-bottom: 1.5rem; border: none; height: 100%; transition: transform 0.3s ease; }
-    .card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12); }
-    .card-title { font-size: 1.6rem !important; font-weight: 600; color: #2d3748; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem; }
-    .medication-item { display: flex; align-items: center; padding: 1rem; background-color: #f7fafc; border-radius: 10px; margin-bottom: 0.8rem; border-left: 4px solid #4299e1; }
-    .medication-time { font-size: 1.2rem; font-weight: 600; color: #2d3748; min-width: 100px; }
-    .medication-details { flex-grow: 1; }
-    .medication-name { font-size: 1.3rem; font-weight: 600; color: #2d3748; margin-bottom: 0.2rem; }
-    .medication-dosage { font-size: 1.1rem; color: #718096; }
-    .appointment-item { padding: 1rem; background-color: #f0fff4; border-radius: 10px; margin-bottom: 0.8rem; border-left: 4px solid #48bb78; }
-    .appointment-date { font-size: 1.2rem; font-weight: 600; color: #2d3748; margin-bottom: 0.5rem; }
-    .appointment-details { font-size: 1.1rem; color: #4a5568; }
-    .health-tip { padding: 1.5rem; background-color: #ebf8ff; border-radius: 10px; border-left: 4px solid #4299e1; }
-    .tip-text { font-size: 1.3rem !important; color: #2d3748; line-height: 1.6; font-style: italic; }
-    .emergency-button { display: flex; justify-content: center; align-items: center; height: 100%; }
-    .emergency-btn { background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); color: white; border: none; border-radius: 50px; padding: 1.5rem 3rem; font-size: 1.8rem; font-weight: 700; cursor: pointer; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: all 0.3s ease; width: 100%; text-align: center; }
-    .emergency-btn:hover { transform: scale(1.05); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%); }
+    .main-header {
+        font-size: 3rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+        background-color: white;
+    }
+    .medication-taken {
+        background-color: #e6f7e6;
+        border-left: 5px solid #2ecc71;
+    }
+    .medication-missed {
+        background-color: #ffe6e6;
+        border-left: 5px solid #e74c3c;
+    }
+    .appointment-card {
+        background-color: #e6f3ff;
+        border-left: 5px solid #3498db;
+    }
+    .health-tip {
+        background-color: #fff8e6;
+        border-left: 5px solid #f39c12;
+        font-style: italic;
+    }
+    .contact-card {
+        background-color: #f9e6ff;
+        border-left: 5px solid #9b59b6;
+    }
+    .metric-card {
+        text-align: center;
+        padding: 15px;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .metric-label {
+        font-size: 1rem;
+        color: #7f8c8d;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- API CONFIGURATION ---
-# Replace with your actual API endpoints
-API_BASE_URL = "http://localhost:8000/api"  # Change to your backend URL
-
-def get_user_data():
-    """Fetch user-specific data from backend API"""
-    try:
-        # In a real app, you would get the user ID from session/auth token
-        user_id = st.session_state.get('user_id', 1)  # Default to user 1 for demo
-        
-        # Fetch medications
-        meds_response = requests.get(f"{API_BASE_URL}/users/{user_id}/medications/today")
-        medications = meds_response.json() if meds_response.status_code == 200 else []
-        
-        # Fetch appointments
-        apps_response = requests.get(f"{API_BASE_URL}/users/{user_id}/appointments/upcoming")
-        appointments = apps_response.json() if apps_response.status_code == 200 else []
-        
-        # Fetch user profile
-        profile_response = requests.get(f"{API_BASE_URL}/users/{user_id}/profile")
-        profile = profile_response.json() if profile_response.status_code == 200 else {}
-        
-        return {
-            'medications': medications,
-            'appointments': appointments,
-            'profile': profile
-        }
-    except requests.exceptions.RequestException:
-        # Fallback to sample data if API is unavailable
-        return get_sample_data()
-
-def get_sample_data():
-    """Sample data for when API is unavailable"""
-    today = datetime.date.today()
+# Mock data function - Replace with actual API call
+def fetch_dashboard_data():
+    # In a real implementation, you would make an API call to your backend
+    # For example:
+    # response = requests.get("http://your-api-url/api/v1/dashboard", 
+    #                       headers={"Authorization": f"Bearer {st.session_state.token}"})
+    # return response.json()
+    
+    # Mock data based on your backend structure
     return {
-        'medications': [
-            {"id": 1, "name": "Blood Pressure Meds", "dosage": "10mg", "time": "08:00", "taken": True},
-            {"id": 2, "name": "Diabetes Medication", "dosage": "5mg", "time": "12:30", "taken": False},
-            {"id": 3, "name": "Cholesterol Pills", "dosage": "20mg", "time": "18:00", "taken": False},
-            {"id": 4, "name": "Vitamin D Supplement", "dosage": "1000IU", "time": "20:00", "taken": False}
-        ],
-        'appointments': [
-            {"id": 1, "date": (today + timedelta(days=1)).isoformat(), "time": "10:00", "doctor": "Dr. Smith", "type": "Regular Checkup"},
-            {"id": 2, "date": (today + timedelta(days=3)).isoformat(), "time": "14:30", "doctor": "Dr. Johnson", "type": "Cardiology"},
-            {"id": 3, "date": (today + timedelta(days=7)).isoformat(), "time": "11:15", "doctor": "Dr. Williams", "type": "Dental Checkup"}
-        ],
-        'profile': {
-            'name': 'John Doe',
-            'emergency_contacts': [
-                {'name': 'Sarah Wilson', 'relationship': 'Daughter', 'phone': '+1234567890'}
+        "user_full_name": "Rahul Sharma",
+        "summary": {
+            "personalized_message": "Namaste, Rahul! You have 2 appointment(s) today.",
+            "adherence_score": 95,
+            "adherence_message": "Keep up the great work!"
+        },
+        "medications_today": {
+            "all_daily": [
+                {
+                    "id": 1,
+                    "name": "Metformin",
+                    "dosage": "500mg",
+                    "frequency": "Twice daily",
+                    "frequency_type": "Daily"
+                },
+                {
+                    "id": 2,
+                    "name": "Atorvastatin",
+                    "dosage": "20mg",
+                    "frequency": "Once daily",
+                    "frequency_type": "Daily"
+                },
+                {
+                    "id": 3,
+                    "name": "Aspirin",
+                    "dosage": "81mg",
+                    "frequency": "Once daily",
+                    "frequency_type": "Daily"
+                }
+            ],
+            "taken_ids": [1, 3]
+        },
+        "appointments": {
+            "today": [
+                {
+                    "id": 1,
+                    "title": "Endocrinologist Visit",
+                    "doctor_name": "Dr. Patel",
+                    "appointment_datetime": datetime.now().replace(hour=10, minute=0, second=0, microsecond=0).isoformat(),
+                    "location": "City Hospital"
+                },
+                {
+                    "id": 2,
+                    "title": "Blood Test",
+                    "doctor_name": "Lab Technician",
+                    "appointment_datetime": datetime.now().replace(hour=15, minute=30, second=0, microsecond=0).isoformat(),
+                    "location": "Diagnostic Center"
+                }
+            ],
+            "upcoming": [
+                {
+                    "id": 3,
+                    "title": "Cardiologist Follow-up",
+                    "doctor_name": "Dr. Kumar",
+                    "appointment_datetime": (datetime.now() + timedelta(days=3)).replace(hour=11, minute=0, second=0, microsecond=0).isoformat(),
+                    "location": "Specialty Clinic"
+                }
             ]
-        }
+        },
+        "reminders": {
+            "refills": [
+                {
+                    "medication_name": "Metformin",
+                    "remaining_days": 5
+                }
+            ]
+        },
+        "health_vitals": {
+            "blood_pressure": "120/80",
+            "blood_sugar": "110 mg/dL",
+            "heart_rate": "72 bpm"
+        },
+        "emergency_contacts": [
+            {
+                "id": 1,
+                "name": "Priya Sharma",
+                "relationship": "Wife",
+                "phone": "+91 98765 43210"
+            },
+            {
+                "id": 2,
+                "name": "Dr. Patel",
+                "relationship": "Primary Care",
+                "phone": "+91 97654 32109"
+            }
+        ],
+        "health_tip": "Regular exercise helps maintain stable blood sugar levels."
     }
 
-def mark_medication_taken(medication_id):
-    """Mark a medication as taken via API"""
-    try:
-        response = requests.post(f"{API_BASE_URL}/medications/{medication_id}/taken")
-        return response.status_code == 200
-    except requests.exceptions.RequestException:
-        # For demo purposes, just update local state
-        if 'taken_medications' not in st.session_state:
-            st.session_state.taken_medications = set()
-        st.session_state.taken_medications.add(medication_id)
-        return True
+# Initialize session state for user data
+if 'dashboard_data' not in st.session_state:
+    st.session_state.dashboard_data = fetch_dashboard_data()
 
-# --- SIDEBAR NAVIGATION ---
-with st.sidebar:
-    st.title("❤️ Wellness Hub")
-    st.markdown("---")
-    
-    # Navigation
-    if st.button("🏠 Dashboard", use_container_width=True):
-        st.rerun()  # Refresh the current page
-        
-    if st.button("💊 Medications", use_container_width=True):
-        st.switch_page("pages/Medications.py")
-        
-    if st.button("🗓️ Appointments", use_container_width=True):
-        st.switch_page("pages/Appointments.py")
-        
-    if st.button("🆘 Emergency", use_container_width=True):
-        st.switch_page("pages/Emergency.py")
-        
-    if st.button("👤 Profile", use_container_width=True):
-        st.switch_page("pages/Profile.py")
-        
-    if st.button("💡 Health Tips", use_container_width=True):
-        st.switch_page("pages/HealthTips.py")
-    
-    st.markdown("---")
-    
-    if st.button("🚪 Logout", use_container_width=True, type="primary"):
-        st.success("Logged out successfully!")
+# Header section
+st.markdown(f"<h1 class='main-header'>Welcome, {st.session_state.dashboard_data['user_full_name']}</h1>", unsafe_allow_html=True)
 
-# --- LOAD USER DATA ---
-user_data = get_user_data()
-medications = user_data['medications']
-appointments = user_data['appointments']
-user_profile = user_data['profile']
+# Summary metrics
+col1, col2, col3, col4 = st.columns(4)
 
-# Apply taken status from session (for demo)
-if 'taken_medications' in st.session_state:
-    for med in medications:
-        if med['id'] in st.session_state.taken_medications:
-            med['taken'] = True
-
-# --- DASHBOARD LAYOUT ---
-
-# Header Section
-user_name = user_profile.get('name', 'Guest')
-st.markdown(f"""
-<div class="header">
-    <h1>Welcome to your Wellness Hub!</h1>
-    <p>Hello, {user_name}! Here's your overview for {datetime.datetime.now().strftime('%A, %B %d')}</p>
-</div>
-""", unsafe_allow_html=True)
-
-# Main Dashboard Grid
-col1, col2 = st.columns(2, gap="large")
-col3, col4 = st.columns(2, gap="large")
-
-# Card 1: Today's Medication Schedule
 with col1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">💊 Today\'s Medications</div>', unsafe_allow_html=True)
-    
-    if not medications:
-        st.info("No medications scheduled for today.")
-    else:
-        for med in medications:
-            # Format time to 12-hour format
-            try:
-                time_obj = datetime.datetime.strptime(med['time'], '%H:%M')
-                time_str = time_obj.strftime('%I:%M %p')
-            except:
-                time_str = med['time']
-            
-            status = "✅ Taken" if med.get('taken', False) else "⏰ Upcoming"
-            status_color = "#38a169" if med.get('taken', False) else "#d69e2e"
-            
-            st.markdown(f"""
-            <div class="medication-item">
-                <div class="medication-time" style="color: {status_color};">{time_str}</div>
-                <div class="medication-details">
-                    <div class="medication-name">{med['name']}</div>
-                    <div class="medication-dosage">{med['dosage']} • {status}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Mark as taken button for upcoming medications
-            if not med.get('taken', False):
-                if st.button("Mark Taken", key=f"med_{med['id']}"):
-                    if mark_medication_taken(med['id']):
-                        st.success(f"Marked {med['name']} as taken!")
-                        st.rerun()
-    
-    if st.button("Manage Medications", use_container_width=True, type="secondary"):
-        st.switch_page("pages/Medications.py")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class='card metric-card'>
+        <div class='metric-value'>{len(st.session_state.dashboard_data['medications_today']['all_daily'])}</div>
+        <div class='metric-label'>Medications Today</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Card 2: Upcoming Appointments
 with col2:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">🗓️ Upcoming Appointments</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class='card metric-card'>
+        <div class='metric-value'>{st.session_state.dashboard_data['summary']['adherence_score']}%</div>
+        <div class='metric-label'>Adherence Score</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f"""
+    <div class='card metric-card'>
+        <div class='metric-value'>{len(st.session_state.dashboard_data['appointments']['today'])}</div>
+        <div class='metric-label'>Appointments Today</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown(f"""
+    <div class='card metric-card'>
+        <div class='metric-value'>{len(st.session_state.dashboard_data['emergency_contacts'])}</div>
+        <div class='metric-label'>Emergency Contacts</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Main content
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    # Medications section
+    st.subheader("Today's Medications")
     
-    if not appointments:
-        st.info("No upcoming appointments.")
-    else:
-        for apt in appointments:
-            # Format appointment date
-            try:
-                apt_date = datetime.datetime.fromisoformat(apt['date'].replace('Z', '+00:00'))
-                date_str = apt_date.strftime('%b %d')
-                
-                # Format time to 12-hour format
-                time_obj = datetime.datetime.strptime(apt['time'], '%H:%M')
-                time_str = time_obj.strftime('%I:%M %p')
-            except:
-                date_str = apt['date']
-                time_str = apt['time']
-            
-            st.markdown(f"""
-            <div class="appointment-item">
-                <div class="appointment-date">{date_str} at {time_str}</div>
-                <div class="appointment-details">
-                    <strong>{apt['doctor']}</strong><br>
-                    {apt['type']}
+    for med in st.session_state.dashboard_data['medications_today']['all_daily']:
+        is_taken = med['id'] in st.session_state.dashboard_data['medications_today']['taken_ids']
+        
+        status_class = "medication-taken" if is_taken else "medication-missed"
+        status_text = "✓ Taken" if is_taken else "✗ Not Taken Yet"
+        
+        st.markdown(f"""
+        <div class='card {status_class}'>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3>{med['name']} ({med['dosage']})</h3>
+                    <p>{med['frequency']}</p>
+                </div>
+                <div>
+                    {status_text}
                 </div>
             </div>
-            """, unsafe_allow_html=True)
-    
-    if st.button("Schedule Appointment", use_container_width=True, type="secondary"):
-        st.switch_page("pages/Appointments.py")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Card 3: Daily Health Tip
-with col3:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">💡 Daily Health Tip</div>', unsafe_allow_html=True)
-    
-    health_tips = [
-        "Stay hydrated! Drink at least 8 glasses of water throughout the day.",
-        "Take a short walk after meals to aid digestion and maintain mobility.",
-        "Remember to do gentle stretching exercises every morning.",
-        "Get 7-8 hours of sleep each night for optimal health and recovery.",
-        "Eat a balanced diet with plenty of fruits and vegetables.",
-        "Practice deep breathing exercises to reduce stress and improve lung capacity.",
-        "Stay socially connected with friends and family for mental wellbeing."
-    ]
-    
-    # Select tip based on day of week
-    day_of_week = datetime.datetime.now().weekday()
-    health_tip = health_tips[day_of_week % len(health_tips)]
-    
-    st.markdown(f'<div class="health-tip"><p class="tip-text">"{health_tip}"</p></div>', unsafe_allow_html=True)
-    
-    if st.button("More Health Tips", use_container_width=True, type="secondary"):
-        st.switch_page("pages/HealthTips.py")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Card 4: Emergency Button
-with col4:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">🆘 Emergency Assistance</div>', unsafe_allow_html=True)
-    
-    emergency_contacts = user_profile.get('emergency_contacts', [])
-    
-    if emergency_contacts:
-        primary_contact = emergency_contacts[0]
-        st.markdown(f"""
-        <div style="text-align: center; margin-bottom: 1rem;">
-            <p style="font-size: 1.2rem; font-weight: 600;">Primary Contact:</p>
-            <p style="font-size: 1.1rem;">{primary_contact['name']} ({primary_contact['relationship']})</p>
-            <p style="font-size: 1.1rem;">📞 {primary_contact['phone']}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="emergency-button">
-        <button class="emergency-btn" onclick="alert('Emergency alert sent! Help is on the way.')">
-            🚨 EMERGENCY CALL
-        </button>
-    </div>
-    """, unsafe_allow_html=True)
+    # Appointments section
+    st.subheader("Today's Appointments")
     
-    st.markdown("""
-    <div style="text-align: center; margin-top: 1rem;">
-        <p style="font-size: 1.1rem;">Press this button to contact emergency services and your emergency contacts.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    if st.button("Manage Emergency Contacts", use_container_width=True, type="secondary"):
-        st.switch_page("pages/Emergency.py")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- BOTTOM STATUS BAR ---
-st.markdown("---")
-current_time = datetime.datetime.now().strftime("%I:%M %p")
-st.caption(f"Last updated: {current_time} • Wellness Hub v1.0")
-
-# Display API status
-try:
-    response = requests.get(f"{API_BASE_URL}/health", timeout=2)
-    if response.status_code == 200:
-        st.sidebar.success("✅ Connected to server")
+    if st.session_state.dashboard_data['appointments']['today']:
+        for appointment in st.session_state.dashboard_data['appointments']['today']:
+            appt_time = datetime.fromisoformat(appointment['appointment_datetime'])
+            formatted_time = appt_time.strftime("%I:%M %p")
+            
+            st.markdown(f"""
+            <div class='card appointment-card'>
+                <h3>{appointment['title']}</h3>
+                <p><strong>Time:</strong> {formatted_time}</p>
+                <p><strong>Doctor:</strong> {appointment['doctor_name']}</p>
+                <p><strong>Location:</strong> {appointment['location']}</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.sidebar.warning("⚠️ Using demo data")
-except:
-    st.sidebar.warning("⚠️ Using demo data")
+        st.info("No appointments scheduled for today.")
+    
+    # Upcoming appointments
+    st.subheader("Upcoming Appointments")
+    
+    if st.session_state.dashboard_data['appointments']['upcoming']:
+        for appointment in st.session_state.dashboard_data['appointments']['upcoming']:
+            appt_time = datetime.fromisoformat(appointment['appointment_datetime'])
+            formatted_date = appt_time.strftime("%B %d, %Y")
+            formatted_time = appt_time.strftime("%I:%M %p")
+            
+            st.markdown(f"""
+            <div class='card appointment-card'>
+                <h3>{appointment['title']}</h3>
+                <p><strong>Date:</strong> {formatted_date}</p>
+                <p><strong>Time:</strong> {formatted_time}</p>
+                <p><strong>Doctor:</strong> {appointment['doctor_name']}</p>
+                <p><strong>Location:</strong> {appointment['location']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No upcoming appointments.")
+
+with col2:
+    # Health tip
+    st.subheader("Health Tip of the Day")
+    st.markdown(f"""
+    <div class='card health-tip'>
+        <p>{st.session_state.dashboard_data['health_tip']}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Emergency contacts
+    st.subheader("Emergency Contacts")
+    
+    for contact in st.session_state.dashboard_data['emergency_contacts']:
+        st.markdown(f"""
+        <div class='card contact-card'>
+            <h3>{contact['name']}</h3>
+            <p><strong>Relationship:</strong> {contact['relationship']}</p>
+            <p><strong>Phone:</strong> {contact['phone']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Refill reminders
+    st.subheader("Refill Reminders")
+    
+    if st.session_state.dashboard_data['reminders']['refills']:
+        for refill in st.session_state.dashboard_data['reminders']['refills']:
+            st.warning(f"{refill['medication_name']} needs refill in {refill['remaining_days']} days")
+    else:
+        st.info("No refills needed soon.")
+    
+    # Health vitals
+    st.subheader("Health Vitals")
+    
+    if 'health_vitals' in st.session_state.dashboard_data and st.session_state.dashboard_data['health_vitals']:
+        vitals = st.session_state.dashboard_data['health_vitals']
+        
+        # Create a small chart for blood pressure trend (mock data)
+        dates = pd.date_range(end=datetime.today(), periods=7).tolist()
+        systolic = [120, 122, 118, 121, 119, 120, 120]
+        diastolic = [80, 82, 78, 81, 79, 80, 80]
+        
+        fig = make_subplots(specs=[[{"secondary_y": False}]])
+        fig.add_trace(go.Scatter(x=dates, y=systolic, name="Systolic", line=dict(color='red')))
+        fig.add_trace(go.Scatter(x=dates, y=diastolic, name="Diastolic", line=dict(color='blue')))
+        fig.update_layout(height=200, showlegend=True, margin=dict(l=20, r=20, t=30, b=20))
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Display current vitals
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Blood Pressure", vitals.get('blood_pressure', 'N/A'))
+        with col2:
+            st.metric("Blood Sugar", vitals.get('blood_sugar', 'N/A'))
+        with col3:
+            st.metric("Heart Rate", vitals.get('heart_rate', 'N/A'))
+    else:
+        st.info("No health vitals recorded yet.")
+
+# Adherence chart (mock data)
+st.subheader("Medication Adherence Trend")
+adherence_data = pd.DataFrame({
+    'Date': pd.date_range(end=datetime.today(), periods=30),
+    'Adherence': [92, 94, 96, 95, 93, 95, 96, 97, 95, 94, 
+                  96, 95, 97, 96, 95, 94, 96, 97, 95, 96, 
+                  97, 96, 95, 94, 96, 97, 98, 96, 95, 95]
+})
+
+fig = px.line(adherence_data, x='Date', y='Adherence', 
+              title='30-Day Adherence Trend',
+              labels={'Adherence': 'Adherence (%)'})
+fig.update_traces(line=dict(color='green', width=3))
+fig.update_layout(height=300)
+st.plotly_chart(fig, use_container_width=True)
+
+# Footer with last updated time
+ist = pytz.timezone('Asia/Kolkata')
+current_time = datetime.now(ist).strftime("%B %d, %Y at %I:%M %p %Z")
+st.caption(f"Last updated: {current_time}")
+
+# Refresh button
+if st.button("Refresh Data"):
+    st.session_state.dashboard_data = fetch_dashboard_data()
+    st.rerun()
