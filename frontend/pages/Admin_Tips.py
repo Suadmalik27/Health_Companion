@@ -27,7 +27,7 @@ authenticated_sidebar(cookies)
 # Yeh functions aam taur par auth/service.py mein hone chahiye,
 # lekin error theek karne ke liye inhein yahan joda gaya hai.
 
-API_BASE_URL = "http://127.0.0.1:8080" # Isko production mein settings se lena chahiye
+API_BASE_URL = "https://health-companion-backend-44ug.onrender.com" # Isko production mein settings se lena chahiye
 
 def get_all_tips(token: str):
     """ Backend se saari health tips ko fetch karta hai. """
@@ -143,4 +143,5 @@ else:
                         st.rerun()
                     else:
                         st.error(f"Failed to delete: {msg}")
+
 
