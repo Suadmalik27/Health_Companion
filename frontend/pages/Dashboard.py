@@ -216,13 +216,7 @@ with st.sidebar:
     # If your main app file is Home.py:
     st.page_link("Home.py", label="🏠 Dashboard", icon="📊")
     
-    # If your pages are in a pages directory:
-    st.page_link("pages/Medications.py", label="💊 Medications", icon="💊")
-    st.page_link("pages/Appointments.py", label="🗓️ Appointments", icon="🗓️")
-    st.page_link("pages/Emergency_Contacts.py", label="🆘 Emergency", icon="🆘")
-    st.page_link("pages/Profile.py", label="👤 Profile", icon="👤")
-    st.page_link("pages/HealthTips.py", label="💡 Health Tips", icon="💡")
-    
+     
     st.markdown("---")
     
     # Logout button
@@ -378,4 +372,5 @@ with col4:
 st.markdown("---")
 current_time = datetime.datetime.now().strftime("%I:%M %p")
 st.caption(f"Last updated: {current_time} • Wellness Hub v1.0")
+
 
