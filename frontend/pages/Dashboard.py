@@ -1,10 +1,7 @@
-# frontend/pages/Dashboard.py (VERSION 10.0 - MODERN UI)
-
-# --- 1. LIBRARY IMPORTS ---
 import streamlit as st
 from streamlit_cookies_manager import CookieManager
 import time
-from datetime import datetime, timezone, timedelta 
+from datetime import datetime, timedelta 
 import pytz
 import pandas as pd
 import plotly.express as px
@@ -16,7 +13,7 @@ import numpy as np
 from auth.service import TOKEN_COOKIE_NAME, get_dashboard_data, mark_medication_as_taken
 from components.sidebar import authenticated_sidebar
 
-# --- 2. PAGE CONFIGURATION & INITIALIZATION ---
+# --- PAGE CONFIGURATION & INITIALIZATION ---
 st.set_page_config(
     page_title="My Wellness Dashboard",
     page_icon="❤️",
@@ -24,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 3. CUSTOM CSS STYLING ---
+# --- CUSTOM CSS STYLING ---
 def load_css():
     st.markdown("""
     <style>
@@ -33,201 +30,103 @@ def load_css():
         padding: 0 1rem;
     }
     
-    /* Sidebar Styling */
-    .css-1d391kg, .css-1vq4p4l {
-        background-color: #f8fafc;
-        border-right: 1px solid #e2e8f0;
-    }
-    
     /* Card Styling */
     .card {
         background-color: white;
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         margin-bottom: 1.5rem;
-        border: 1px solid #e2e8f0;
-        transition: all 0.3s ease;
-    }
-    
-    .card:hover {
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        transform: translateY(-2px);
+        border: 1px solid #e0e0e0;
     }
     
     .emergency-card {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
         color: white;
     }
     
     .metric-card {
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
         color: white;
     }
     
     .tip-card {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
+        background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
     }
     
     /* Button Styling */
-    .stButton>button {
+    .stButton > button {
         border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        padding: 0.5rem 1rem;
-        background-color: white;
-        transition: all 0.2s ease;
-    }
-    
-    .stButton>button:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e1;
-        transform: translateY(-1px);
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
     }
     
     .sos-button {
         background-color: white;
-        color: #dc2626;
-        padding: 0.75rem 1.5rem;
+        color: #ff4b4b;
+        padding: 1rem 2rem;
         border-radius: 8px;
-        font-weight: 700;
+        font-size: 1.5rem;
+        font-weight: bold;
         text-align: center;
         margin-top: 1rem;
         cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     
-    .sos-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    /* Text sizing for senior citizens */
+    .big-text {
+        font-size: 1.4rem !important;
     }
     
-    .sos-button a {
-        color: #dc2626;
-        text-decoration: none;
+    .medium-text {
+        font-size: 1.2rem !important;
     }
     
-    /* List Items */
+    /* List items */
     .list-item {
         display: flex;
         align-items: center;
-        padding: 0.75rem;
+        padding: 1rem;
         border-radius: 8px;
         margin-bottom: 0.5rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        transition: all 0.2s ease;
-    }
-    
-    .list-item:hover {
-        background-color: #f1f5f9;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
     }
     
     .list-item-icon {
         font-size: 1.5rem;
-        margin-right: 0.75rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-        background-color: #e0f2fe;
-        border-radius: 8px;
-        color: #0369a1;
-    }
-    
-    .list-item-info {
-        flex: 1;
-    }
-    
-    /* Tabs Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 40px;
-        white-space: pre-wrap;
-        background-color: #f8fafc;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        border: 1px solid #e2e8f0;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #3b82f6;
-        color: white;
-    }
-    
-    /* Progress Bar Styling */
-    .stProgress > div > div > div {
-        background-color: #3b82f6;
-    }
-    
-    /* Divider Styling */
-    .stDivider {
-        margin: 1.5rem 0;
-    }
-    
-    /* Animation for cards */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .card {
-        animation: fadeIn 0.5s ease-out;
-    }
-    
-    /* Custom metric styling */
-    .metric-value {
-        font-size: 2.5rem;
-        font-weight: 700;
-        margin: 0.5rem 0;
-    }
-    
-    /* Custom checkbox styling */
-    .stCheckbox > label {
-        font-weight: 500;
-    }
-    
-    /* Adjust spacing */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    .element-container {
-        margin-bottom: 1rem;
-    }
-    
-    /* Custom tab content padding */
-    .stTab {
-        padding-top: 1rem;
+        margin-right: 1rem;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. AUTHENTICATION & COOKIE MANAGEMENT ---
+# --- AUTHENTICATION & COOKIE MANAGEMENT ---
+# Initialize cookies first
 cookies = CookieManager()
+
+# Check if cookies are ready
 if not cookies.ready():
-    st.spinner("Initializing Session...")
+    st.spinner("Loading your session...")
     st.stop()
+
+# Check authentication
 token = cookies.get(TOKEN_COOKIE_NAME)
 if not token:
-    st.warning("🔒 You are not logged in. Please log in to your Wellness Hub.")
-    st.link_button("Go to Login Page", "Home.py")
+    st.warning("You are not logged in. Please log in to continue.")
+    if st.button("Go to Login Page"):
+        st.switch_page("Home.py")
     st.stop()
+
+# Load sidebar after authentication check
 authenticated_sidebar(cookies)
 
-# --- 5. LOAD STYLES ---
+# --- LOAD STYLES ---
 load_css()
 
-# --- 6. DATA FETCHING & STATE MANAGEMENT ---
+# --- DATA FETCHING & STATE MANAGEMENT ---
 IST = pytz.timezone('Asia/Kolkata')
 
-@st.cache_data(show_spinner="Updating your Wellness Hub...")
+@st.cache_data(show_spinner="Loading your dashboard...")
 def load_data(token_param):
     is_success, data = get_dashboard_data(token_param)
     if not is_success:
@@ -238,82 +137,94 @@ def load_data(token_param):
 def handle_med_taken_action(med_id):
     is_marked, msg = mark_medication_as_taken(token, med_id)
     if is_marked:
-        st.toast("Great job! Your log has been updated.", icon="🎉")
+        st.toast("Great job! Medication marked as taken.", icon="✅")
+        # Clear cache to refresh data
         st.cache_data.clear()
         st.rerun()
     else:
-        st.error(f"Could not log medication: {msg}")
-        st.rerun()
+        st.error(f"Could not mark medication: {msg}")
 
+# Load dashboard data
 dashboard_data = load_data(token)
 if dashboard_data is None:
     st.stop()
 
-# --- 7. DATA EXTRACTION & PRE-PROCESSING ---
-summary_data = dashboard_data.get("summary", {})
-meds_data = dashboard_data.get("medications_today", {})
-appt_data = dashboard_data.get("appointments", {})
+# --- DATA PROCESSING ---
+user_name = dashboard_data.get("user_full_name", "User")
+medications_today = dashboard_data.get("medications_today", [])
+appointments = dashboard_data.get("appointments", {})
 emergency_contacts = dashboard_data.get("emergency_contacts", [])
 health_tip = dashboard_data.get("health_tip", "Remember to stay hydrated and have a great day!")
-user_name = dashboard_data.get("user_full_name", "User")
+
+# Process medications
+pending_meds = [med for med in medications_today if not med.get('taken', False)]
+completed_meds = [med for med in medications_today if med.get('taken', False)]
+
+# Process appointments
+todays_appointments = appointments.get("today", [])
+upcoming_appointments = appointments.get("upcoming", [])
+
+# Get primary emergency contact
 primary_contact = emergency_contacts[0] if emergency_contacts else None
-all_daily_meds = sorted(meds_data.get("all_daily", []), key=lambda x: x.get('specific_time') or "23:59")
-taken_today_ids = set(meds_data.get("taken_ids", []))
-pending_meds = [med for med in all_daily_meds if med['id'] not in taken_today_ids]
-completed_meds = [med for med in all_daily_meds if med['id'] in taken_today_ids]
-todays_appointments = appt_data.get("today", [])
-upcoming_appointments = appt_data.get("upcoming", [])
-adherence_score = summary_data.get("adherence_score", 100)
-adherence_message = summary_data.get("adherence_message", "Keep up the good work!")
+
+# Calculate adherence score
+total_meds = len(medications_today)
+taken_meds = len(completed_meds)
+adherence_score = (taken_meds / total_meds * 100) if total_meds > 0 else 100
 
 # Generate sample data for charts
-dates = pd.date_range(start=(datetime.now(IST) - timedelta(days=6)), end=datetime.now(IST), freq='D')
+dates = pd.date_range(start=(datetime.now() - timedelta(days=6)), end=datetime.now(), freq='D')
 medication_adherence = [85, 90, 100, 75, 95, 100, adherence_score]
 mood_data = [3, 4, 5, 4, 3, 4, 5]  # Sample mood data (1-5 scale)
 steps_data = [6543, 7234, 5678, 8345, 7890, 9123, 8456]  # Sample step count
 
-# --- 8. UI RENDERING FUNCTIONS ---
-def get_time_based_theme():
-    """ Determines a greeting icon based on the current time in India. """
-    now = datetime.now(IST)
-    hour = now.hour
-    if 5 <= hour < 12: return "☀️"
-    elif 12 <= hour < 17: return "👋"
-    else: return "🌙"
-
-greeting_icon = get_time_based_theme()
-
+# --- UI COMPONENTS ---
 def render_header():
-    header_cols = st.columns([3, 1])
-    with header_cols[0]:
-        st.title(f"{greeting_icon} Welcome, {user_name.split()[0]}!")
-        st.markdown("Here is your wellness summary for today.")
-    with header_cols[1]:
-        clock_placeholder = st.empty()
+    """Render the dashboard header with greeting"""
+    hour = datetime.now(IST).hour
+    if 5 <= hour < 12:
+        greeting = "Good Morning"
+    elif 12 <= hour < 17:
+        greeting = "Good Afternoon"
+    else:
+        greeting = "Good Evening"
+    
+    st.title(f"{greeting}, {user_name.split()[0]}!")
+    st.markdown("Here's your wellness summary for today")
     st.divider()
-    return clock_placeholder
 
 def render_left_panel():
+    """Render the left panel with emergency contacts and metrics"""
     st.subheader("Quick Actions")
     
-    # EMERGENCY SOS CARD
+    # EMERGENCY CARD
     st.markdown('<div class="card emergency-card">', unsafe_allow_html=True)
-    st.markdown('<h3>🚨 EMERGENCY SOS</h3>', unsafe_allow_html=True)
-    if primary_contact:
-        st.markdown(f"<p style='font-size: 1rem; color: white;'>Click to call<br><b>{primary_contact['contact_name']}</b></p>", unsafe_allow_html=True)
-        st.markdown(f"<div class='sos-button'><a href='tel:{primary_contact['phone_number']}'>📞 CALL NOW</a></div>", unsafe_allow_html=True)
-    else: 
-        st.markdown("<p style='font-size: 1rem; color: white;'>Please add an emergency contact in your profile.</p>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # WEEKLY REPORT CARD
-    st.markdown('<div class="card metric-card">', unsafe_allow_html=True)
-    st.markdown('<h3>📈 Weekly Adherence</h3>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-value">{adherence_score}%</div>', unsafe_allow_html=True)
-    st.caption(adherence_message)
+    st.markdown('<h3>🚨 EMERGENCY CONTACT</h3>', unsafe_allow_html=True)
     
-    # Adherence progress bar
-    st.progress(adherence_score/100)
+    if primary_contact:
+        st.markdown(f"<p class='big-text'><b>{primary_contact['contact_name']}</b></p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='medium-text'>{primary_contact.get('relationship_type', 'Contact')}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p class='medium-text'>📞 {primary_contact['phone_number']}</p>", unsafe_allow_html=True)
+        
+        # Call button
+        if st.button("📞 CALL NOW", use_container_width=True, type="primary"):
+            st.info(f"Calling {primary_contact['contact_name']}...")
+    else:
+        st.info("No emergency contacts set up yet.")
+        if st.button("➕ Add Emergency Contact", use_container_width=True):
+            st.switch_page("pages/Emergency_Contacts.py")
+            
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # PROGRESS CARD
+    st.markdown('<div class="card metric-card">', unsafe_allow_html=True)
+    st.markdown('<h3>📊 Today\'s Progress</h3>', unsafe_allow_html=True)
+    
+    st.markdown(f'<p class="big-text">{taken_meds}/{total_meds} Medications Taken</p>', unsafe_allow_html=True)
+    st.progress(adherence_score / 100)
+    
+    if adherence_score == 100 and total_meds > 0:
+        st.success("🎉 All medications taken today!")
     st.markdown('</div>', unsafe_allow_html=True)
     
     # HEALTH METRICS CARD
@@ -343,39 +254,57 @@ def render_left_panel():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_center_panel():
-    st.subheader("Today's Focus")
+    """Render the center panel with medications and appointments"""
+    st.subheader("Today's Schedule")
     
-    # Today's Focus Card (Meds & Appointments)
+    # MEDICATIONS CARD
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    tabs = st.tabs(["💊 Medications", "🗓️ Appointments"])
+    st.markdown('<h3>💊 Today\'s Medications</h3>', unsafe_allow_html=True)
     
-    with tabs[0]:
-        if not pending_meds: 
-            st.success("All medications for today have been taken! Great job!")
-        for med in pending_meds:
-            med_timing_str = med.get('meal_timing') or (datetime.strptime(med['specific_time'], '%H:%M:%S').strftime('%I:%M %p') if med.get('specific_time') else 'Anytime')
-            st.markdown("<div class='list-item'>", unsafe_allow_html=True)
-            item_cols = st.columns([1, 4, 1])
-            with item_cols[0]:
-                st.markdown('<div class="list-item-icon">💊</div>', unsafe_allow_html=True)
-            with item_cols[1]:
-                st.markdown(f"<div class='list-item-info'><b>{med['name']}</b> ({med['dosage']})<br><small>Due: {med_timing_str}</small></div>", unsafe_allow_html=True)
-            with item_cols[2]:
-                st.checkbox("Taken", value=False, key=f"d_{med['id']}", on_change=handle_med_taken_action, args=(med['id'],), label_visibility="hidden")
-            st.markdown("</div>", unsafe_allow_html=True)
+    if not medications_today:
+        st.info("No medications scheduled for today.")
+    else:
+        for med in medications_today:
+            status = "✅ Taken" if med.get('taken') else "⏰ Pending"
+            st.markdown(f"""
+            <div class="list-item">
+                <div class="list-item-icon">💊</div>
+                <div>
+                    <b>{med['name']}</b> ({med['dosage']}) - {med.get('timing', 'Anytime')}<br>
+                    <small>{status}</small>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if not med.get('taken'):
+                if st.button("Mark as Taken", key=f"med_{med['id']}"):
+                    handle_med_taken_action(med['id'])
     
-    with tabs[1]:
-        if not todays_appointments:
-            st.info("You have no appointments scheduled for today.")
-        else:
-            for appt in todays_appointments:
-                appt_dt_utc = datetime.fromisoformat(appt['appointment_datetime'])
-                appt_dt_ist = appt_dt_utc.astimezone(IST)
-                st.markdown("<div class='list-item'>", unsafe_allow_html=True)
-                st.markdown('<div class="list-item-icon">🗓️</div>', unsafe_allow_html=True)
-                st.markdown(f"<div class='list-item-info'><b>{appt_dt_ist.strftime('%I:%M %p')} with Dr. {appt.get('doctor_name', 'N/A')}</b><br><small>Location: {appt.get('location', 'N/A')}</small></div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("➕ Add Medication", use_container_width=True):
+        st.switch_page("pages/Medications.py")
+    st.markdown('</div>', unsafe_allow_html=True)
     
+    # APPOINTMENTS CARD
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<h3>🗓️ Today\'s Appointments</h3>', unsafe_allow_html=True)
+    
+    if not todays_appointments:
+        st.info("No appointments scheduled for today.")
+    else:
+        for appt in todays_appointments:
+            appt_time = datetime.fromisoformat(appt['appointment_datetime'].replace('Z', '+00:00')).astimezone(IST).strftime('%I:%M %p')
+            st.markdown(f"""
+            <div class="list-item">
+                <div class="list-item-icon">🗓️</div>
+                <div>
+                    <b>{appt_time} with Dr. {appt.get('doctor_name', 'Unknown')}</b><br>
+                    <small>{appt.get('location', 'No location specified')}</small>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    if st.button("➕ Schedule Appointment", use_container_width=True):
+        st.switch_page("pages/Appointments.py")
     st.markdown('</div>', unsafe_allow_html=True)
     
     # HEALTH TRENDS CARD
@@ -415,70 +344,72 @@ def render_center_panel():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def render_right_panel():
-    st.subheader("Upcoming & Info")
-    
-    # UPCOMING APPOINTMENTS CARD
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f"<h5>🗓️ Upcoming Appointments</h5>", unsafe_allow_html=True)
-    if not upcoming_appointments:
-        st.info("No appointments scheduled for the upcoming week.")
-    else:
-        for appt in upcoming_appointments:
-            appt_dt_utc = datetime.fromisoformat(appt['appointment_datetime'])
-            appt_dt_ist = appt_dt_utc.astimezone(IST)
-            day_str = "Today" if appt_dt_ist.date() == datetime.now(IST).date() else appt_dt_ist.strftime('%A, %b %d')
-            st.markdown(f"<div class='list-item'><div class='list-item-info'><b>{day_str} at {appt_dt_ist.strftime('%I:%M %p')}</b><br><small>Dr. {appt.get('doctor_name', 'N/A')}</small></div></div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    """Render the right panel with health tips and additional info"""
+    st.subheader("Health & Wellness")
     
     # HEALTH TIP CARD
     st.markdown('<div class="card tip-card">', unsafe_allow_html=True)
-    st.markdown(f"<h5>💡 Daily Health Tip</h5><p>{health_tip}</p>", unsafe_allow_html=True)
+    st.markdown('<h3>💡 Daily Health Tip</h3>', unsafe_allow_html=True)
+    st.info(health_tip)
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # DATA EXPORT FEATURE
+    
+    # UPCOMING APPOINTMENTS CARD
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown(f"<h5>📄 Data & Reports</h5>", unsafe_allow_html=True)
-    st.markdown("<small>Export your medication and appointment history for your doctor's visit.</small>", unsafe_allow_html=True)
+    st.markdown('<h3>📅 Upcoming Appointments</h3>', unsafe_allow_html=True)
     
-    med_history_df = pd.DataFrame({
-        'Date': [(datetime.now(IST) - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)],
-        'Medication': ['Lisinopril', 'Metformin', 'Lisinopril', 'Atorvastatin', 'Metformin', 'Lisinopril', 'Metformin'],
-        'Status': ['Taken', 'Taken', 'Missed', 'Taken', 'Taken', 'Taken', 'Missed']
-    })
+    if not upcoming_appointments:
+        st.info("No upcoming appointments.")
+    else:
+        for appt in upcoming_appointments[:3]:  # Show only next 3 appointments
+            appt_dt = datetime.fromisoformat(appt['appointment_datetime'].replace('Z', '+00:00')).astimezone(IST)
+            appt_date = appt_dt.strftime('%b %d')
+            appt_time = appt_dt.strftime('%I:%M %p')
+            st.markdown(f"""
+            <div class="list-item">
+                <div class="list-item-icon">📅</div>
+                <div>
+                    <b>{appt_date} at {appt_time}</b><br>
+                    <small>Dr. {appt.get('doctor_name', 'Unknown')}</small>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    st.download_button(
-        label="📥 Export Report (CSV)",
-        data=med_history_df.to_csv(index=False).encode('utf-8'),
-        file_name='wellness_report.csv',
-        mime='text/csv',
-        use_container_width=True
-    )
+    # QUICK ACTIONS CARD
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<h3>⚡ Quick Actions</h3>', unsafe_allow_html=True)
+    
+    if st.button("👤 View Profile", use_container_width=True):
+        st.switch_page("pages/Profile.py")
+        
+    if st.button("💡 More Health Tips", use_container_width=True):
+        st.switch_page("pages/Health_Tips.py")
+        
+    if st.button("📞 Manage Contacts", use_container_width=True):
+        st.switch_page("pages/Emergency_Contacts.py")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 9. MAIN LAYOUT & APP EXECUTION ---
-if 'welcomed' not in st.session_state:
-    st.info("Welcome to your Wellness Hub! This is your main dashboard where you can see all your daily tasks at a glance.")
-    st.session_state.welcomed = True
+# --- MAIN LAYOUT ---
+render_header()
 
-clock_placeholder = render_header()
-main_cols = st.columns([1, 2, 1], gap="large")
+# Create three-column layout
+left_col, center_col, right_col = st.columns([1, 2, 1], gap="large")
 
-with main_cols[0]:
+with left_col:
     render_left_panel()
 
-with main_cols[1]:
+with center_col:
     render_center_panel()
 
-with main_cols[2]:
+with right_col:
     render_right_panel()
 
-# --- 10. LIVE CLOCK BACKGROUND PROCESS ---
-# Note: This while loop will run continuously, updating the clock
-# In a production environment, consider using a different approach
-while True:
-    now_ist = datetime.now(IST)
-    time_str = now_ist.strftime("%I:%M:%S %p")
-    date_str = now_ist.strftime("%A, %B %d, %Y")
-    with clock_placeholder.container():
-        st.markdown(f"<div style='text-align: right;'><h2 style='font-weight: 700; margin-bottom: -15px; color: #212121;'>{time_str}</h2><p style='color: #616161;'>{date_str}</p></div>", unsafe_allow_html=True)
-    time.sleep(1)
+# --- LIVE CLOCK ---
+# Display current time (simplified version without infinite loop)
+now_ist = datetime.now(IST)
+time_str = now_ist.strftime("%I:%M:%S %p")
+date_str = now_ist.strftime("%A, %B %d, %Y")
+
+st.sidebar.markdown(f"**Current Time:** {time_str}")
+st.sidebar.markdown(f"**Date:** {date_str}")
+    # time.sleep(1)
