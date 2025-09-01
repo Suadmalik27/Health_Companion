@@ -111,4 +111,5 @@ with col2:
             st.switch_page("pages/Register.py")
     with btn_cols[1]:
         if st.button("Forgot Password?", use_container_width=True):
-            st.switch_page("pages/Forgot_Password.py")
+            st.switch_page("pages/forgot_password.py")
+
