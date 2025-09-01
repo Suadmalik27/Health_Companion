@@ -55,7 +55,8 @@ def forgot_password(
     crud_user.set_password_reset_token(db, db_user=user, token=token, expires_at=expires_at)
     
     # Create the full reset link
-    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+     
+    reset_link = f"{settings.FRONTEND_URL}/reset_password?token={token}"
     
     # Send the email
     send_password_reset_email(recipient_email=email, reset_link=reset_link)
@@ -88,4 +89,5 @@ def reset_password(
     db.add(user)
     db.commit()
     
+
     return {"msg": "Password has been reset successfully."}
