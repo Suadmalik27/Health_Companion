@@ -40,7 +40,7 @@ app = FastAPI(
 # --- CORS Middleware (remains the same) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:8501"],
+    allow_origins=[settings.FRONTEND_URL, "https://healthcompanion3.streamlit.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,4 +51,5 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/", tags=["Root"])
 def read_root():
-    return {"message": "Welcome to the Senior Citizen Support API!"}
+
+    return {"message": "Welcome to the Senior Citizen Support API hello!"}
