@@ -64,7 +64,7 @@ app.add_middleware(
     # Add all allowed origins here
     allow_origins=[
         settings.FRONTEND_URL,          # For local development from .env
-        "http://localhost:8501",        # Explicitly for local dev
+                 # Explicitly for local dev
         "https://healthcompanion3.streamlit.app" # Your deployed app URL
     ],
     allow_credentials=True,
@@ -90,3 +90,4 @@ app.include_router(api_router, prefix="/api/v1")
 def read_root():
     """A simple health check endpoint."""
     return {"message": "Welcome to the Senior Citizen Support API hello!"}
+
