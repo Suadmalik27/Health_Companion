@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Any
 import secrets
 from datetime import datetime, timedelta, timezone
-
+from app.db import models
 from app.api import deps
 from app.core import security
 from app.core.config import settings
@@ -91,4 +91,5 @@ def reset_password(
     
 
     return {"msg": "Password has been reset successfully."}
+
 
