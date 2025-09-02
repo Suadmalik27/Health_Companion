@@ -31,7 +31,7 @@ def login_user(email: str, password: str) -> tuple[bool, str | dict]:
 
 def request_password_reset(email: str) -> tuple[bool, str]:
     """ Sends a password reset request email. """
-    url = f"{BASE_URL}/auth/forgot_password"
+    url = f"{BASE_URL}/auth/forgot-password"
     payload = {"email": email}
     try:
         response = requests.post(url, json=payload)
@@ -225,6 +225,7 @@ def delete_health_tip(token: str, tip_id: int) -> tuple[bool, str]:
         if response.status_code == 200: return True, "Tip deleted successfully."
         else: return False, response.json().get("detail", "Failed to delete tip.")
     except requests.RequestException: return False, "Server communication error."
+
 
 
 
