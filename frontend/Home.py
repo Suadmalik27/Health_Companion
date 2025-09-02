@@ -3,6 +3,7 @@
 import streamlit as st
 from streamlit_cookies_manager import CookieManager
 from pathlib import Path
+from reset_page import draw_reset_page
 import base64
 import time
 import sys
@@ -143,3 +144,4 @@ else:
         with btn_cols[1]:
             if st.button("Forgot Password?", use_container_width=True):
                 st.switch_page("pages/forgot_password.py")
+
