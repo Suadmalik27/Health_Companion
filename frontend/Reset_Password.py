@@ -50,7 +50,7 @@ def get_image_as_base64(path):
 # --- 4. PAGE LAYOUT ---
 
 # Load and display the app icon
-image_path = Path(__file__).parent.parent / "assets" / "icon.png"
+image_path = Path(__file__).parent.parent / "assets" / "download.jpeg"
 img_base64 = get_image_as_base64(image_path)
 if img_base64:
     st.image(f"data:image/png;base64,{img_base64}", width=100)
@@ -104,3 +104,4 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown("---")
 if st.button("Back to Login", use_container_width=True):
     st.switch_page("Home.py")
+
