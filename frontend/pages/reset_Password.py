@@ -1,4 +1,14 @@
-# frontend/Reset_Password.py (VERSION 2.0 - MODERN & SENIOR-FRIENDLY)
+# frontend/pages/reset_Password.py (FINAL, DEPLOYMENT-READY VERSION)
+
+import sys
+from pathlib import Path
+
+# --- YEH ZAROORI FIX HAI ---
+# Isse app ko 'auth' aur 'components' folder mil jaate hain.
+project_root = str(Path(__file__).parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+# --- FIX KHATAM ---
 
 import streamlit as st
 from auth.service import set_new_password
@@ -15,7 +25,6 @@ st.set_page_config(
 )
 
 # --- 2. CUSTOM STYLING ---
-# Consistent styling with other pages like Login and Register
 st.markdown("""
 <style>
     /* --- Hide default Streamlit elements for a cleaner look --- */
@@ -50,6 +59,7 @@ def get_image_as_base64(path):
 # --- 4. PAGE LAYOUT ---
 
 # Load and display the app icon
+# The path needs to be adjusted because this file is in the 'pages' directory
 image_path = Path(__file__).parent.parent / "assets" / "download.jpeg"
 img_base64 = get_image_as_base64(image_path)
 if img_base64:
