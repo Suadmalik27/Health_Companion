@@ -1,6 +1,7 @@
 # backend/app/api/v1/api.py (FINAL VERSION - WITH TIPS ROUTER)
 
 from fastapi import APIRouter
+from .endpoints.auth import router as auth_router
 
 from app.api.v1.endpoints import (
     users, 
@@ -23,3 +24,5 @@ api_router.include_router(medications.router, prefix="/medications", tags=["Medi
 api_router.include_router(appointments.router, prefix="/appointments", tags=["Appointments"])
 api_router.include_router(contacts.router, prefix="/contacts", tags=["Contacts"])
 api_router.include_router(tips.router, prefix="/tips", tags=["Health Tips"]) # <-- Naye tips router ko yahan jodna hai
+api_router.include_router(auth_router, prefix="/auth", tags=["Auth"])
+
