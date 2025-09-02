@@ -77,8 +77,25 @@ def reset_password(
     # Find the user by the reset token
     user = db.query(models.User).filter(models.User.reset_password_token == token).first()
 
-    if not user or not user.reset_token_expires_at or user.reset_token_expires_at <= datetime.now(timezone.utc):
+    # --- THIS IS THE FIX ---
+    # We must make the expiry time from the database "aware" of the UTC timezone
+    # before we can compare it.
+    
+    # Get the current time, which is already UTC-aware
+    now_utc = datetime.now(timezone.utc)
+    
+    # Get the expiry time from the database
+    expires_at = user.reset_token_expires_at if user else None
+    
+    # If the expiry time from the DB is "naive" (has no timezone), make it "aware"
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    # Now, perform the validation with two UTC-aware datetimes
+    if not user or not expires_at or expires_at <= now_utc:
         raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+    
+    # --- END OF FIX ---
     
     # Update the user's password
     user.hashed_password = security.get_password_hash(new_password)
@@ -89,8 +106,8 @@ def reset_password(
     db.add(user)
     db.commit()
     
-
     return {"msg": "Password has been reset successfully."}
+
 
 
 
