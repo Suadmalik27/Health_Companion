@@ -1,10 +1,10 @@
-# frontend/pages/Dashboard.py (VERSION 10.0 - MODERN UI)
+# frontend/pages/Dashboard.py (MODIFIED VERSION)
 
 # --- 1. LIBRARY IMPORTS ---
 import streamlit as st
 from streamlit_cookies_manager import CookieManager
 import time
-from datetime import datetime, timezone, timedelta 
+from datetime import datetime, timezone, timedelta
 import pytz
 import pandas as pd
 import plotly.express as px
@@ -266,10 +266,8 @@ upcoming_appointments = appt_data.get("upcoming", [])
 adherence_score = summary_data.get("adherence_score", 100)
 adherence_message = summary_data.get("adherence_message", "Keep up the good work!")
 
-# Generate sample data for charts
+# Generate sample data for steps chart (removed other charts)
 dates = pd.date_range(start=(datetime.now(IST) - timedelta(days=6)), end=datetime.now(IST), freq='D')
-medication_adherence = [85, 90, 100, 75, 95, 100, adherence_score]
-mood_data = [3, 4, 5, 4, 3, 4, 5]  # Sample mood data (1-5 scale)
 steps_data = [6543, 7234, 5678, 8345, 7890, 9123, 8456]  # Sample step count
 
 # --- 8. UI RENDERING FUNCTIONS ---
@@ -302,7 +300,7 @@ def render_left_panel():
     if primary_contact:
         st.markdown(f"<p style='font-size: 1rem; color: white;'>Click to call<br><b>{primary_contact['contact_name']}</b></p>", unsafe_allow_html=True)
         st.markdown(f"<div class='sos-button'><a href='tel:{primary_contact['phone_number']}'>📞 CALL NOW</a></div>", unsafe_allow_html=True)
-    else: 
+    else:    
         st.markdown("<p style='font-size: 1rem; color: white;'>Please add an emergency contact in your profile.</p>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -322,7 +320,7 @@ def render_left_panel():
     
     # Create a simple chart for steps
     fig_steps = go.Figure(go.Scatter(
-        x=dates, 
+        x=dates,
         y=steps_data,
         mode='lines+markers',
         line=dict(color='#3b82f6', width=3),
@@ -350,7 +348,7 @@ def render_center_panel():
     tabs = st.tabs(["💊 Medications", "🗓️ Appointments"])
     
     with tabs[0]:
-        if not pending_meds: 
+        if not pending_meds:
             st.success("All medications for today have been taken! Great job!")
         for med in pending_meds:
             med_timing_str = med.get('meal_timing') or (datetime.strptime(med['specific_time'], '%H:%M:%S').strftime('%I:%M %p') if med.get('specific_time') else 'Anytime')
@@ -371,48 +369,13 @@ def render_center_panel():
             for appt in todays_appointments:
                 appt_dt_utc = datetime.fromisoformat(appt['appointment_datetime'])
                 appt_dt_ist = appt_dt_utc.astimezone(IST)
-                st.markdown("<div class='list-item'>", unsafe_allow_html=True)
-                st.markdown('<div class="list-item-icon">🗓️</div>', unsafe_allow_html=True)
-                st.markdown(f"<div class='list-item-info'><b>{appt_dt_ist.strftime('%I:%M %p')} with Dr. {appt.get('doctor_name', 'N/A')}</b><br><small>Location: {appt.get('location', 'N/A')}</small></div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                day_str = "Today" if appt_dt_ist.date() == datetime.now(IST).date() else appt_dt_ist.strftime('%A, %b %d')
+                st.markdown(f"<div class='list-item'><div class='list-item-info'><b>{day_str} at {appt_dt_ist.strftime('%I:%M %p')}</b><br><small>Dr. {appt.get('doctor_name', 'N/A')}</small></div></div>", unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # HEALTH TRENDS CARD
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<h4>📈 Weekly Trends</h4>', unsafe_allow_html=True)
-    
-    # Create a chart with two y-axes
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    # Add adherence trace
-    fig.add_trace(
-        go.Scatter(x=dates, y=medication_adherence, name="Adherence %", 
-                  line=dict(color='#3b82f6', width=3)),
-        secondary_y=False,
-    )
-    
-    # Add mood trace
-    fig.add_trace(
-        go.Scatter(x=dates, y=mood_data, name="Mood", 
-                  line=dict(color='#10b981', width=3, dash='dot')),
-        secondary_y=True,
-    )
-    
-    # Set axis titles
-    fig.update_yaxes(title_text="Adherence %", secondary_y=False)
-    fig.update_yaxes(title_text="Mood (1-5)", secondary_y=True)
-    
-    fig.update_layout(
-        height=300,
-        margin=dict(l=0, r=0, t=30, b=0),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+
+    # NOTE: The "Weekly Trends" section has been removed as per your request.
+    # The code for this section, including the make_subplots, has been deleted.
 
 def render_right_panel():
     st.subheader("Upcoming & Info")
