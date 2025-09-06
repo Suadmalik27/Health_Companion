@@ -11,6 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
+import os # To handle file paths
 
 # Custom local imports
 from auth.service import TOKEN_COOKIE_NAME, get_dashboard_data, mark_medication_as_taken
@@ -206,6 +207,35 @@ def load_css():
     .stTab {
         padding-top: 1rem;
     }
+
+    /* Welcome Banner Styling */
+    .welcome-banner {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        background-color: #eef2ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .welcome-banner img {
+        height: 60px;
+        width: 60px;
+        border-radius: 50%;
+    }
+    .welcome-banner .text {
+        flex: 1;
+    }
+    .welcome-banner h3 {
+        margin: 0;
+        color: #4338ca;
+    }
+    .welcome-banner p {
+        margin: 0;
+        color: #4f46e5;
+        font-size: 1rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -263,12 +293,6 @@ pending_meds = [med for med in all_daily_meds if med['id'] not in taken_today_id
 completed_meds = [med for med in all_daily_meds if med['id'] in taken_today_ids]
 todays_appointments = appt_data.get("today", [])
 upcoming_appointments = appt_data.get("upcoming", [])
-adherence_score = summary_data.get("adherence_score", 100)
-adherence_message = summary_data.get("adherence_message", "Keep up the good work!")
-
-# Generate sample data for steps chart (removed other charts)
-dates = pd.date_range(start=(datetime.now(IST) - timedelta(days=6)), end=datetime.now(IST), freq='D')
-steps_data = [6543, 7234, 5678, 8345, 7890, 9123, 8456]  # Sample step count
 
 # --- 8. UI RENDERING FUNCTIONS ---
 def get_time_based_theme():
@@ -284,12 +308,29 @@ greeting_icon = get_time_based_theme()
 def render_header():
     header_cols = st.columns([3, 1])
     with header_cols[0]:
-        st.title(f"{greeting_icon} Welcome, {user_name.split()[0]}!")
-        st.markdown("Here is your wellness summary for today.")
+        # New Interactive Welcome Banner
+        st.markdown(f"""
+        <div class="welcome-banner">
+            <img src="data:image/jpeg;base64,{get_logo_base64()}" alt="Health Companion Logo">
+            <div class="text">
+                <h3>{greeting_icon} Welcome to your Wellness Hub!</h3>
+                <p>Here is your daily summary at a glance.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     with header_cols[1]:
         clock_placeholder = st.empty()
     st.divider()
     return clock_placeholder
+
+def get_logo_base64():
+    """Converts the logo image to base64 for embedding in HTML."""
+    import base64
+    logo_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'download.jpeg')
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    return "" # Return empty string if not found
 
 def render_left_panel():
     st.subheader("Quick Actions")
@@ -304,41 +345,8 @@ def render_left_panel():
         st.markdown("<p style='font-size: 1rem; color: white;'>Please add an emergency contact in your profile.</p>", unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # WEEKLY REPORT CARD
-    st.markdown('<div class="card metric-card">', unsafe_allow_html=True)
-    st.markdown('<h3>📈 Weekly Adherence</h3>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-value">{adherence_score}%</div>', unsafe_allow_html=True)
-    st.caption(adherence_message)
-    
-    # Adherence progress bar
-    st.progress(adherence_score/100)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # HEALTH METRICS CARD
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<h4>📊 Health Metrics</h4>', unsafe_allow_html=True)
-    
-    # Create a simple chart for steps
-    fig_steps = go.Figure(go.Scatter(
-        x=dates,
-        y=steps_data,
-        mode='lines+markers',
-        line=dict(color='#3b82f6', width=3),
-        marker=dict(size=6)
-    ))
-    
-    fig_steps.update_layout(
-        height=200,
-        showlegend=False,
-        margin=dict(l=0, r=0, t=0, b=0),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=False),
-        yaxis=dict(showgrid=False, title="Steps")
-    )
-    
-    st.plotly_chart(fig_steps, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # NOTE: The "Weekly Adherence" card is now removed.
+    # NOTE: The "Health Metrics" card is now removed.
 
 def render_center_panel():
     st.subheader("Today's Focus")
@@ -373,9 +381,6 @@ def render_center_panel():
                 st.markdown(f"<div class='list-item'><div class='list-item-info'><b>{day_str} at {appt_dt_ist.strftime('%I:%M %p')}</b><br><small>Dr. {appt.get('doctor_name', 'N/A')}</small></div></div>", unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # NOTE: The "Weekly Trends" section has been removed as per your request.
-    # The code for this section, including the make_subplots, has been deleted.
 
 def render_right_panel():
     st.subheader("Upcoming & Info")
@@ -419,10 +424,7 @@ def render_right_panel():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 9. MAIN LAYOUT & APP EXECUTION ---
-if 'welcomed' not in st.session_state:
-    st.info("Welcome to your Wellness Hub! This is your main dashboard where you can see all your daily tasks at a glance.")
-    st.session_state.welcomed = True
-
+# The old st.info message is replaced by the new banner in render_header()
 clock_placeholder = render_header()
 main_cols = st.columns([1, 2, 1], gap="large")
 
